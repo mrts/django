@@ -4,8 +4,8 @@ from django.db import models
 from django.core.files.storage import default_storage
 from django.contrib.auth.models import User
 
-class MyFileField(models.FileField): 
-    pass 
+class MyFileField(models.FileField):
+    pass
 
 class Member(models.Model):
     name = models.CharField(max_length=100)
@@ -107,7 +107,7 @@ Currently: <a target="_blank" href="%(STORAGE_URL)salbums/hybrid_theory.jpg">alb
 >>> rel = Album._meta.get_field('band').rel
 >>> w = ForeignKeyRawIdWidget(rel)
 >>> print conditional_escape(w.render('test', band.pk, attrs={}))
-<input type="text" name="test" value="1" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/band/?t=id" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong>Linkin Park</strong>
+<input type="text" name="test" value="1" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/band/?t=id" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong><a href="../../../admin_widgets/band/1/">Linkin Park</a></strong>
 
 >>> m1 = Member.objects.create(pk=1, name='Chester')
 >>> m2 = Member.objects.create(pk=2, name='Mike')
@@ -138,13 +138,13 @@ True
 >>> rel = Inventory._meta.get_field('parent').rel
 >>> w = ForeignKeyRawIdWidget(rel)
 >>> print w.render('test', core.parent_id, attrs={})
-<input type="text" name="test" value="86" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong>Apple</strong>
+<input type="text" name="test" value="86" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong><a href="../../../admin_widgets/inventory/1/">Apple</a></strong>
 
 # see #9258
 >>> hidden = Inventory.objects.create(barcode=93, name='Hidden', hidden=True)
 >>> child_of_hidden = Inventory.objects.create(barcode=94, name='Child of hidden', parent=hidden)
 >>> print w.render('test', child_of_hidden.parent_id, attrs={})
-<input type="text" name="test" value="93" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong>Hidden</strong>
+<input type="text" name="test" value="93" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong><a href="../../../admin_widgets/inventory/4/">Hidden</a></strong>
 """ % {
     'ADMIN_MEDIA_PREFIX': settings.ADMIN_MEDIA_PREFIX,
     'STORAGE_URL': default_storage.url(''),

@@ -149,7 +149,10 @@ class ForeignKeyRawIdWidget(forms.TextInput):
     def label_for_value(self, value):
         key = self.rel.get_related_field().name
         obj = self.rel.to._default_manager.get(**{key: value})
-        return '&nbsp;<strong>%s</strong>' % escape(truncate_words(obj, 14))
+        related_url = '../../../%s/%s/%s/' % (obj._meta.app_label,
+                obj._meta.object_name.lower(), obj.pk)
+        return '&nbsp;<strong><a href="%s">%s</a></strong>' % (related_url,
+                escape(truncate_words(obj, 14)))
 
 class ManyToManyRawIdWidget(ForeignKeyRawIdWidget):
     """

@@ -77,6 +77,9 @@ class BaseQuery(object):
         self.select_related = False
         self.related_select_cols = []
 
+        # Raw overrides
+        self.raw_order_by = None
+
         # SQL aggregate-related attributes
         self.aggregates = SortedDict() # Maps alias -> SQL aggregate function
         self.aggregate_select_mask = None
@@ -236,6 +239,7 @@ class BaseQuery(object):
         obj.extra_where = self.extra_where
         obj.extra_params = self.extra_params
         obj.extra_order_by = self.extra_order_by
+        obj.raw_order_by = self.raw_order_by
         obj.deferred_loading = deepcopy(self.deferred_loading)
         if self.filter_is_sticky and self.used_aliases:
             obj.used_aliases = self.used_aliases.copy()
@@ -446,7 +450,11 @@ class BaseQuery(object):
             result.append('HAVING %s' % having)
             params.extend(h_params)
 
-        if ordering:
+        if self.raw_order_by:
+            result.append('ORDER BY %s' % self.raw_order_by[0])
+            if self.raw_order_by[1]:
+                params.extend(self.raw_order_by[1])
+        elif ordering:
             result.append('ORDER BY %s' % ', '.join(ordering))
 
         if with_limits:
@@ -2190,6 +2198,13 @@ class BaseQuery(object):
             self.extra_tables += tuple(tables)
         if order_by:
             self.extra_order_by = order_by
+
+    def raw_override(self, order_by=None, order_by_params=None):
+        """
+        Override parts of the SQL with user-provided strings.
+        As of now, only overriding ORDER BY is implemented.
+        """
+        self.raw_order_by = (order_by, order_by_params)
 
     def clear_deferred_loading(self):
         """

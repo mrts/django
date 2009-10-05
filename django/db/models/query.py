@@ -611,6 +611,17 @@ class QuerySet(object):
         clone.query.add_extra(select, select_params, where, params, tables, order_by)
         return clone
 
+    def raw_override(self, order_by=None, order_by_params=None):
+        """
+        Adds raw SQL overrides to the query. As of now, only overriding
+        ORDER BY is implemented.
+        """
+        assert self.query.can_filter(), \
+                "Cannot change a query once a slice has been taken"
+        clone = self._clone()
+        clone.query.raw_override(order_by, order_by_params)
+        return clone
+
     def reverse(self):
         """
         Reverses the ordering of the QuerySet.

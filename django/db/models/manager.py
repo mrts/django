@@ -116,6 +116,9 @@ class Manager(object):
     def extra(self, *args, **kwargs):
         return self.get_query_set().extra(*args, **kwargs)
 
+    def raw_override(self, *args, **kwargs):
+        return self.get_query_set().raw_override(*args, **kwargs)
+
     def get(self, *args, **kwargs):
         return self.get_query_set().get(*args, **kwargs)
 

@@ -6,7 +6,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.utils import dateformat
 from django.utils.html import escape, conditional_escape
-from django.utils.text import capfirst, truncate_words
+from django.utils.text import capfirst
 from django.utils.safestring import mark_safe
 from django.utils.translation import get_date_formats, get_partial_date_formats, ugettext as _
 from django.utils.encoding import smart_unicode, smart_str, force_unicode

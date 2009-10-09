@@ -1,11 +1,12 @@
 from django.conf import settings
 from django.contrib.admin.views.main import ALL_VAR, EMPTY_CHANGELIST_VALUE
 from django.contrib.admin.views.main import ORDER_VAR, ORDER_TYPE_VAR, PAGE_VAR, SEARCH_VAR
+from django.contrib.admin.util import obj_label, get_related_url
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.utils import dateformat
 from django.utils.html import escape, conditional_escape
-from django.utils.text import capfirst
+from django.utils.text import capfirst, truncate_words
 from django.utils.safestring import mark_safe
 from django.utils.translation import get_date_formats, get_partial_date_formats, ugettext as _
 from django.utils.encoding import smart_unicode, smart_str, force_unicode
@@ -224,8 +225,10 @@ def items_for_result(cl, result, form):
                 attr = pk
             value = result.serializable_value(attr)
             result_id = repr(force_unicode(value))[1:]
+            result_name = obj_label(result)
+            result_url = get_related_url(result, result.pk)
             yield mark_safe(u'<%s%s><a href="%s"%s>%s</a></%s>' % \
-                (table_tag, row_class, url, (cl.is_popup and ' onclick="opener.dismissRelatedLookupPopup(window, %s); return false;"' % result_id or ''), conditional_escape(result_repr), table_tag))
+                (table_tag, row_class, url, (cl.is_popup and ' onclick="opener.dismissRelatedLookupPopup(window, %s, \'<a href=&quot;%s&quot;>%s</a>\'); return false;"' % (result_id or '', result_url, result_name)), conditional_escape(result_repr), table_tag))
         else:
             # By default the fields come from ModelAdmin.list_editable, but if we pull
             # the fields out of the form instead of list_editable custom admins

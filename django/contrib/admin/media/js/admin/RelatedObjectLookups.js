@@ -41,14 +41,21 @@ function showRelatedObjectLookupPopup(triggeringLink) {
     return false;
 }
 
-function dismissRelatedLookupPopup(win, chosenId) {
+function dismissRelatedLookupPopup(win, chosenId, chosenName) {
     var name = windowname_to_id(win.name);
     var elem = document.getElementById(name);
+    var nameElem = document.getElementById("view_lookup_" + name);
+
     if (elem.className.indexOf('vManyToManyRawIdAdminField') != -1 && elem.value) {
         elem.value += ',' + chosenId;
     } else {
         document.getElementById(name).value = chosenId;
     }
+
+    if (nameElem) {
+      nameElem.innerHTML = chosenName;
+    }
+
     win.close();
 }
 

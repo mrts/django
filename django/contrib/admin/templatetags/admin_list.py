@@ -228,7 +228,7 @@ def items_for_result(cl, result, form):
             result_name = obj_label(result)
             result_url = get_related_url(result, result.pk)
             yield mark_safe(u'<%s%s><a href="%s"%s>%s</a></%s>' % \
-                (table_tag, row_class, url, (cl.is_popup and ' onclick="opener.dismissRelatedLookupPopup(window, %s, \'<a href=&quot;%s&quot;>%s</a>\'); return false;"' % (result_id or '', result_url, result_name)), conditional_escape(result_repr), table_tag))
+                (table_tag, row_class, url, (cl.is_popup and ' onclick="opener.dismissRelatedLookupPopup(window, %s, \'<a href=&quot;%s&quot;>%s</a>\'); return false;"' % (result_id, result_url, result_name) or ''), conditional_escape(result_repr), table_tag))
         else:
             # By default the fields come from ModelAdmin.list_editable, but if we pull
             # the fields out of the form instead of list_editable custom admins

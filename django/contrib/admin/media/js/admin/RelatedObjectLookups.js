@@ -27,6 +27,11 @@ function windowname_to_id(text) {
     return text;
 }
 
+function showRelatedObjectPopup(triggeringLink) {
+    // the name is unused
+    return openWindow(triggeringLink.href, "showrelatedobject");
+}
+
 function showRelatedObjectLookupPopup(triggeringLink) {
     var name = triggeringLink.id.replace(/^lookup_/, '');
     name = id_to_windowname(name);
@@ -36,9 +41,7 @@ function showRelatedObjectLookupPopup(triggeringLink) {
     } else {
         href = triggeringLink.href + '?pop=1';
     }
-    var win = window.open(href, name, 'height=500,width=800,resizable=yes,scrollbars=yes');
-    win.focus();
-    return false;
+    return openWindow(href, name);
 }
 
 function dismissRelatedLookupPopup(win, chosenId, chosenName) {
@@ -68,9 +71,7 @@ function showAddAnotherPopup(triggeringLink) {
     } else {
         href  += '&_popup=1';
     }
-    var win = window.open(href, name, 'height=500,width=800,resizable=yes,scrollbars=yes');
-    win.focus();
-    return false;
+    return openWindow(href, name);
 }
 
 function dismissAddAnotherPopup(win, newId, newRepr) {
@@ -100,4 +101,10 @@ function dismissAddAnotherPopup(win, newId, newRepr) {
         SelectBox.redisplay(toId);
     }
     win.close();
+}
+
+function openWindow(href, name) {
+    var win = window.open(href, name, 'height=500,width=800,resizable=yes,scrollbars=yes');
+    win.focus();
+    return false;
 }

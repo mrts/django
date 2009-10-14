@@ -107,7 +107,7 @@ Currently: <a target="_blank" href="%(STORAGE_URL)salbums/hybrid_theory.jpg">alb
 >>> rel = Album._meta.get_field('band').rel
 >>> w = ForeignKeyRawIdWidget(rel)
 >>> print conditional_escape(w.render('test', band.pk, attrs={}))
-<input type="text" name="test" value="1" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/band/?t=id" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong id="view_lookup_id_test"><a href="../../../admin_widgets/band/1/">Linkin Park</a></strong>
+<input type="text" name="test" value="1" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/band/?t=id" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong id="view_lookup_id_test"><a href="../../../admin_widgets/band/1/" onclick="return showRelatedObjectPopup(this);">Linkin Park</a></strong>
 
 >>> m1 = Member.objects.create(pk=1, name='Chester')
 >>> m2 = Member.objects.create(pk=2, name='Mike')
@@ -138,13 +138,13 @@ True
 >>> rel = Inventory._meta.get_field('parent').rel
 >>> w = ForeignKeyRawIdWidget(rel)
 >>> print w.render('test', core.parent_id, attrs={})
-<input type="text" name="test" value="86" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong id="view_lookup_id_test"><a href="../../../admin_widgets/inventory/1/">Apple</a></strong>
+<input type="text" name="test" value="86" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong id="view_lookup_id_test"><a href="../../../admin_widgets/inventory/1/" onclick="return showRelatedObjectPopup(this);">Apple</a></strong>
 
 # see #9258
 >>> hidden = Inventory.objects.create(barcode=93, name='Hidden', hidden=True)
 >>> child_of_hidden = Inventory.objects.create(barcode=94, name='Child of hidden', parent=hidden)
 >>> print w.render('test', child_of_hidden.parent_id, attrs={})
-<input type="text" name="test" value="93" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong id="view_lookup_id_test"><a href="../../../admin_widgets/inventory/4/">Hidden</a></strong>
+<input type="text" name="test" value="93" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong id="view_lookup_id_test"><a href="../../../admin_widgets/inventory/4/" onclick="return showRelatedObjectPopup(this);">Hidden</a></strong>
 """ % {
     'ADMIN_MEDIA_PREFIX': settings.ADMIN_MEDIA_PREFIX,
     'STORAGE_URL': default_storage.url(''),

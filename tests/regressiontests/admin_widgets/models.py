@@ -145,6 +145,11 @@ True
 >>> child_of_hidden = Inventory.objects.create(barcode=94, name='Child of hidden', parent=hidden)
 >>> print w.render('test', child_of_hidden.parent_id, attrs={})
 <input type="text" name="test" value="93" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong id="view_lookup_id_test"><a href="../../../admin_widgets/inventory/4/" onclick="return showRelatedObjectPopup(this);">Hidden</a></strong>
+
+>>> apostrophe = Inventory.objects.create(barcode=88, name="'Apostrophe', and <javascript> and a really really` really really really really really long one!")
+>>> apostrophic_child = Inventory.objects.create(barcode=89, name="Apostrophe's child", parent=apostrophe)
+>>> print w.render('test', apostrophic_child.parent_id, attrs={})
+<input type="text" name="test" value="88" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong id="view_lookup_id_test"><a href="../../../admin_widgets/inventory/6/" onclick="return showRelatedObjectPopup(this);">&#39;Apostrophe&#39;, and &lt;javascript&gt; and a really really` ...</a></strong>
 """ % {
     'ADMIN_MEDIA_PREFIX': settings.ADMIN_MEDIA_PREFIX,
     'STORAGE_URL': default_storage.url(''),

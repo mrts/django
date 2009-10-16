@@ -230,12 +230,10 @@ def items_for_result(cl, result, form):
             yield mark_safe(u'<%s%s><a href="%s"%s>%s</a></%s>' %
                 (table_tag, row_class, url,
                     (cl.is_popup
-                        and ' onclick='
-                            '"opener.dismissRelatedLookupPopup(window, %s, '
-                            "'<a href=&quot;%s&quot; "
-                            'onclick=&quot;return showRelatedObjectPopup(this);&quot;'
-                            '>%s</a>\'); return false;"' %
-                            (result_id, result_url, result_name)
+                        and ' onclick="opener.dismissRelatedLookupPopup('
+                            "window, %s, '%s', '%s'); return false;\"" %
+                            (result_id, result_url,
+                                result_name.replace("&#39;", r"\'"))
                         or ''),
                     conditional_escape(result_repr), table_tag))
         else:

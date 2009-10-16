@@ -11,9 +11,18 @@ function html_unescape(text) {
     return text;
 }
 
+function html_escape(text) {
+    text = text.replace(/&/g, '&amp;');
+    text = text.replace(/</g, '&lt;');
+    text = text.replace(/>/g, '&gt;');
+    text = text.replace(/"/g, '&quot;');
+    text = text.replace(/'/g, '&#39;');
+    return text;
+}
+
 // IE doesn't accept periods or dashes in the window name, but the element IDs
 // we use to generate popup window names may contain them, therefore we map them
-// to allowed characters in a reversible way so that we can locate the correct 
+// to allowed characters in a reversible way so that we can locate the correct
 // element when the popup window is dismissed.
 function id_to_windowname(text) {
     text = text.replace(/\./g, '__dot__');
@@ -28,23 +37,18 @@ function windowname_to_id(text) {
 }
 
 function showRelatedObjectPopup(triggeringLink) {
-    // the name is unused
-    return openWindow(triggeringLink.href, "showrelatedobject");
+    // TODO: use proper id in name to update the label on change
+    // see admin/options.py#641
+    return openPopupWindow(triggeringLink.href, '_popup', 'showrelatedobject');
 }
 
 function showRelatedObjectLookupPopup(triggeringLink) {
     var name = triggeringLink.id.replace(/^lookup_/, '');
     name = id_to_windowname(name);
-    var href;
-    if (triggeringLink.href.search(/\?/) >= 0) {
-        href = triggeringLink.href + '&pop=1';
-    } else {
-        href = triggeringLink.href + '?pop=1';
-    }
-    return openWindow(href, name);
+    return openPopupWindow(triggeringLink.href, 'pop', name);
 }
 
-function dismissRelatedLookupPopup(win, chosenId, chosenName) {
+function dismissRelatedLookupPopup(win, chosenId, chosenIdHref, chosenName) {
     var name = windowname_to_id(win.name);
     var elem = document.getElementById(name);
     var nameElem = document.getElementById("view_lookup_" + name);
@@ -56,7 +60,9 @@ function dismissRelatedLookupPopup(win, chosenId, chosenName) {
     }
 
     if (nameElem) {
-      nameElem.innerHTML = chosenName;
+      nameElem.innerHTML = '<a href="' + chosenIdHref + '" ' +
+       'onclick="return showRelatedObjectPopup(this);">' +
+        html_escape(chosenName) + '</a>';
     }
 
     win.close();
@@ -65,13 +71,7 @@ function dismissRelatedLookupPopup(win, chosenId, chosenName) {
 function showAddAnotherPopup(triggeringLink) {
     var name = triggeringLink.id.replace(/^add_/, '');
     name = id_to_windowname(name);
-    href = triggeringLink.href
-    if (href.indexOf('?') == -1) {
-        href += '?_popup=1';
-    } else {
-        href  += '&_popup=1';
-    }
-    return openWindow(href, name);
+    return openPopupWindow(triggeringLink.href, '_popup', name);
 }
 
 function dismissAddAnotherPopup(win, newId, newRepr) {
@@ -103,7 +103,12 @@ function dismissAddAnotherPopup(win, newId, newRepr) {
     win.close();
 }
 
-function openWindow(href, name) {
+function openPopupWindow(href, popup_var, name) {
+    if (href.indexOf('?') == -1) {
+        href += '?' + popup_var + '=1';
+    } else {
+        href  += '&' + popup_var + '=1';
+    }
     var win = window.open(href, name, 'height=500,width=800,resizable=yes,scrollbars=yes');
     win.focus();
     return false;

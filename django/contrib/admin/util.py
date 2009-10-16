@@ -244,4 +244,4 @@ def get_related_url(rel_to, action=None, admin_site=None):
     return rel_path % tuple(params)
 
 def obj_label(obj):
-    return escape(truncate_words(obj, 14)).replace("'", "&prime;")
+    return escape(truncate_words(obj, 7))

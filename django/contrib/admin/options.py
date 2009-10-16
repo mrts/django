@@ -638,6 +638,15 @@ class ModelAdmin(BaseModelAdmin):
                 return HttpResponseRedirect(request.path + "?_popup=1")
             else:
                 return HttpResponseRedirect(request.path)
+        elif request.POST.has_key("_popup"):
+            # object changed via raw id link popup
+            return HttpResponse('<script type="text/javascript">window.close();</script>')
+            # TODO: this should update the object label in the href tag
+            # see admin/media/js/admin/RelatedObjectLookups.js#39
+            # return HttpResponse('<script type="text/javascript">
+            #   opener.dismissRelatedObjectPopup(window, "%s", "%s");</script>' % \
+                # escape() calls force_unicode.
+                # (escape(pk_value), escape(obj)))
         elif request.POST.has_key("_saveasnew"):
             msg = _('The %(name)s "%(obj)s" was added successfully. You may edit it again below.') % {'name': force_unicode(opts.verbose_name), 'obj': obj}
             self.message_user(request, msg)

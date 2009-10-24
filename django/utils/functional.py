@@ -266,9 +266,6 @@ class LazyObject(object):
     def __getattr__(self, name):
         if self._wrapped is None:
             self._setup()
-        if name == "__members__":
-            # Used to implement dir(obj)
-            return self._wrapped.get_all_members()
         return getattr(self._wrapped, name)
 
     def __setattr__(self, name, value):
@@ -286,6 +283,13 @@ class LazyObject(object):
         """
         raise NotImplementedError
 
+    # introspection support:
+    __members__ = property(lambda self: self.__dir__())
+
+    def __dir__(self):
+        if self._wrapped is None:
+            self._setup()
+        return  dir(self._wrapped)
 
 class SimpleLazyObject(LazyObject):
     """
@@ -297,6 +301,11 @@ class SimpleLazyObject(LazyObject):
     def __init__(self, func):
         """
         Pass in a callable that returns the object to be wrapped.
+
+        If copies are made of the resulting SimpleLazyObject, which can happen
+        in various circumstances within Django, then you must ensure that the
+        callable can be safely run more than once and will return the same
+        value.
         """
         self.__dict__['_setupfunc'] = func
         # For some reason, we have to inline LazyObject.__init__ here to avoid
@@ -306,6 +315,36 @@ class SimpleLazyObject(LazyObject):
     def __str__(self):
         if self._wrapped is None: self._setup()
         return str(self._wrapped)
+
+    def __unicode__(self):
+        if self._wrapped is None: self._setup()
+        return unicode(self._wrapped)
+
+    def __deepcopy__(self, memo):
+        if self._wrapped is None:
+            # We have to use SimpleLazyObject, not self.__class__, because the
+            # latter is proxied.
+            result = SimpleLazyObject(self._setupfunc)
+            memo[id(self)] = result
+            return result
+        else:
+            import copy
+            return copy.deepcopy(self._wrapped, memo)
+
+    # Need to pretend to be the wrapped class, for the sake of objects that care
+    # about this (especially in equality tests)
+    def __get_class(self):
+        if self._wrapped is None: self._setup()
+        return self._wrapped.__class__
+    __class__ = property(__get_class)
+
+    def __eq__(self, other):
+        if self._wrapped is None: self._setup()
+        return self._wrapped == other
+
+    def __hash__(self):
+        if self._wrapped is None: self._setup()
+        return hash(self._wrapped)
 
     def _setup(self):
         self._wrapped = self._setupfunc()

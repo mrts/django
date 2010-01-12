@@ -6,7 +6,8 @@
   <link rel="stylesheet" type="text/css" href="{% admin_media_prefix %}css/changelists.css" />
   {% if cl.formset %}
     <link rel="stylesheet" type="text/css" href="{% admin_media_prefix %}css/forms.css" />
-    <script type="text/javascript" src="../../jsi18n/"></script>
+    {% url admin:jsi18n as jsi18nurl %}
+    <script type="text/javascript" src="{{ jsi18nurl|default:'../../jsi18n/' }}"></script>
   {% endif %}
   {{ media }}
   {% if not actions_on_top and not actions_on_bottom %}
@@ -68,7 +69,7 @@
         {% endif %}
       {% endblock %}
       
-      <form action="" method="post"{% if cl.formset.is_multipart %} enctype="multipart/form-data"{% endif %}>
+      <form action="" method="post"{% if cl.formset.is_multipart %} enctype="multipart/form-data"{% endif %}>{% csrf_token %}
       {% if cl.formset %}
         {{ cl.formset.management_form }}
       {% endif %}

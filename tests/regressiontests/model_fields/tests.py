@@ -6,7 +6,7 @@ from django import forms
 from django.db import models
 from django.core.exceptions import ValidationError
 
-from models import Foo, Bar, Whiz, BigD, BigS, Image
+from models import Foo, Bar, Whiz, BigD, BigS, Image, BigInt, Post
 
 try:
     from decimal import Decimal
@@ -44,8 +44,9 @@ class DecimalFieldTests(django.test.TestCase):
         self.assertEqual(f._format(None), None)
 
     def test_get_db_prep_lookup(self):
+        from django.db import connection
         f = models.DecimalField(max_digits=5, decimal_places=1)
-        self.assertEqual(f.get_db_prep_lookup('exact', None), [None])
+        self.assertEqual(f.get_db_prep_lookup('exact', None, connection=connection), [None])
 
     def test_filter_with_strings(self):
         """
@@ -98,13 +99,14 @@ class DateTimeFieldTests(unittest.TestCase):
 
 class BooleanFieldTests(unittest.TestCase):
     def _test_get_db_prep_lookup(self, f):
-        self.assertEqual(f.get_db_prep_lookup('exact', True), [True])
-        self.assertEqual(f.get_db_prep_lookup('exact', '1'), [True])
-        self.assertEqual(f.get_db_prep_lookup('exact', 1), [True])
-        self.assertEqual(f.get_db_prep_lookup('exact', False), [False])
-        self.assertEqual(f.get_db_prep_lookup('exact', '0'), [False])
-        self.assertEqual(f.get_db_prep_lookup('exact', 0), [False])
-        self.assertEqual(f.get_db_prep_lookup('exact', None), [None])
+        from django.db import connection
+        self.assertEqual(f.get_db_prep_lookup('exact', True, connection=connection), [True])
+        self.assertEqual(f.get_db_prep_lookup('exact', '1', connection=connection), [True])
+        self.assertEqual(f.get_db_prep_lookup('exact', 1, connection=connection), [True])
+        self.assertEqual(f.get_db_prep_lookup('exact', False, connection=connection), [False])
+        self.assertEqual(f.get_db_prep_lookup('exact', '0', connection=connection), [False])
+        self.assertEqual(f.get_db_prep_lookup('exact', 0, connection=connection), [False])
+        self.assertEqual(f.get_db_prep_lookup('exact', None, connection=connection), [None])
 
     def test_booleanfield_get_db_prep_lookup(self):
         self._test_get_db_prep_lookup(models.BooleanField())
@@ -144,3 +146,97 @@ class SlugFieldTests(django.test.TestCase):
         bs = BigS.objects.create(s = 'slug'*50)
         bs = BigS.objects.get(pk=bs.pk)
         self.assertEqual(bs.s, 'slug'*50)
+
+
+class ValidationTest(django.test.TestCase):
+    def test_charfield_raises_error_on_empty_string(self):
+        f = models.CharField()
+        self.assertRaises(ValidationError, f.clean, "", None)
+
+    def test_charfield_cleans_empty_string_when_blank_true(self):
+        f = models.CharField(blank=True)
+        self.assertEqual('', f.clean('', None))
+
+    def test_integerfield_cleans_valid_string(self):
+        f = models.IntegerField()
+        self.assertEqual(2, f.clean('2', None))
+
+    def test_integerfield_raises_error_on_invalid_intput(self):
+        f = models.IntegerField()
+        self.assertRaises(ValidationError, f.clean, "a", None)
+
+    def test_charfield_with_choices_cleans_valid_choice(self):
+        f = models.CharField(max_length=1, choices=[('a','A'), ('b','B')])
+        self.assertEqual('a', f.clean('a', None))
+
+    def test_charfield_with_choices_raises_error_on_invalid_choice(self):
+        f = models.CharField(choices=[('a','A'), ('b','B')])
+        self.assertRaises(ValidationError, f.clean, "not a", None)
+
+    def test_nullable_integerfield_raises_error_with_blank_false(self):
+        f = models.IntegerField(null=True, blank=False)
+        self.assertRaises(ValidationError, f.clean, None, None)
+
+    def test_nullable_integerfield_cleans_none_on_null_and_blank_true(self):
+        f = models.IntegerField(null=True, blank=True)
+        self.assertEqual(None, f.clean(None, None))
+
+    def test_integerfield_raises_error_on_empty_input(self):
+        f = models.IntegerField(null=False)
+        self.assertRaises(ValidationError, f.clean, None, None)
+        self.assertRaises(ValidationError, f.clean, '', None)
+
+    def test_charfield_raises_error_on_empty_input(self):
+        f = models.CharField(null=False)
+        self.assertRaises(ValidationError, f.clean, None, None)
+
+    def test_datefield_cleans_date(self):
+        f = models.DateField()
+        self.assertEqual(datetime.date(2008, 10, 10), f.clean('2008-10-10', None))
+
+    def test_boolean_field_doesnt_accept_empty_input(self):
+        f = models.BooleanField()
+        self.assertRaises(ValidationError, f.clean, None, None)
+
+
+class BigIntegerFieldTests(django.test.TestCase):
+    def test_limits(self):
+        # Ensure that values that are right at the limits can be saved
+        # and then retrieved without corruption. 
+        maxval = 9223372036854775807
+        minval = -maxval - 1
+        BigInt.objects.create(value=maxval)
+        qs = BigInt.objects.filter(value__gte=maxval)
+        self.assertEqual(qs.count(), 1)
+        self.assertEqual(qs[0].value, maxval)
+        BigInt.objects.create(value=minval)
+        qs = BigInt.objects.filter(value__lte=minval)
+        self.assertEqual(qs.count(), 1)
+        self.assertEqual(qs[0].value, minval)
+
+    def test_types(self):
+        b = BigInt(value = 0)
+        self.assertTrue(isinstance(b.value, (int, long)))
+        b.save()
+        self.assertTrue(isinstance(b.value, (int, long)))
+        b = BigInt.objects.all()[0]
+        self.assertTrue(isinstance(b.value, (int, long)))
+
+    def test_coercing(self):
+        BigInt.objects.create(value ='10')
+        b = BigInt.objects.get(value = '10')
+        self.assertEqual(b.value, 10)
+
+class TypeCoercionTests(django.test.TestCase):
+    """
+    Test that database lookups can accept the wrong types and convert
+    them with no error: especially on Postgres 8.3+ which does not do
+    automatic casting at the DB level. See #10015.
+
+    """
+    def test_lookup_integer_in_charfield(self):
+        self.assertEquals(Post.objects.filter(title=9).count(), 0)
+        
+    def test_lookup_integer_in_textfield(self):
+        self.assertEquals(Post.objects.filter(body=24).count(), 0)
+        

@@ -13,12 +13,6 @@ import tempfile
 from django.db import models
 from django.core.files.storage import FileSystemStorage
 
-# Python 2.3 doesn't have sorted()
-try:
-    sorted
-except NameError:
-    from django.utils.itercompat import sorted
-
 temp_storage_dir = tempfile.mkdtemp()
 temp_storage = FileSystemStorage(temp_storage_dir)
 
@@ -74,7 +68,7 @@ class ImprovedArticleWithParentLink(models.Model):
     article = models.OneToOneField(Article, parent_link=True)
 
 class BetterWriter(Writer):
-    pass
+    score = models.IntegerField()
 
 class WriterProfile(models.Model):
     writer = models.OneToOneField(Writer, primary_key=True)
@@ -201,6 +195,12 @@ class Post(models.Model):
     def __unicode__(self):
         return self.name
 
+class BigInt(models.Model):
+    biggie = models.BigIntegerField()
+
+    def __unicode__(self):
+        return unicode(self.biggie)
+
 __test__ = {'API_TESTS': """
 >>> from django import forms
 >>> from django.forms.models import ModelForm, model_to_dict
@@ -286,6 +286,27 @@ Using 'fields' *and* 'exclude'. Not sure why you'd want to do this, but uh,
 
 >>> CategoryForm.base_fields.keys()
 ['name']
+
+Using 'widgets'
+
+>>> class CategoryForm(ModelForm):
+...
+...     class Meta:
+...         model = Category
+...         fields = ['name', 'url', 'slug']
+...         widgets = {
+...             'name': forms.Textarea,
+...             'url': forms.TextInput(attrs={'class': 'url'})
+...         }
+
+>>> str(CategoryForm()['name'])
+'<textarea id="id_name" rows="10" cols="40" name="name"></textarea>'
+
+>>> str(CategoryForm()['url'])
+'<input id="id_url" type="text" class="url" name="url" maxlength="40" />'
+
+>>> str(CategoryForm()['slug'])
+'<input id="id_slug" type="text" name="slug" maxlength="20" />'
 
 Don't allow more than one 'model' definition in the inheritance hierarchy.
 Technically, it would generate a valid form, but the fact that the resulting
@@ -555,6 +576,8 @@ inserted as 'initial' data in each Field.
 <option value="3">Third test</option>
 </select>  Hold down "Control", or "Command" on a Mac, to select more than one.</li>
 >>> f = TestArticleForm({'headline': u'Test headline', 'slug': 'test-headline', 'pub_date': u'1984-02-06', 'writer': u'1', 'article': 'Hello.'}, instance=art)
+>>> f.errors
+{}
 >>> f.is_valid()
 True
 >>> test_art = f.save()
@@ -967,10 +990,20 @@ ValidationError: [u'Select a valid choice. 4 is not one of the available choices
 >>> ImprovedArticleWithParentLinkForm.base_fields.keys()
 []
 
->>> bw = BetterWriter(name=u'Joe Better')
+>>> bw = BetterWriter(name=u'Joe Better', score=10)
 >>> bw.save()
 >>> sorted(model_to_dict(bw).keys())
-['id', 'name', 'writer_ptr']
+['id', 'name', 'score', 'writer_ptr']
+
+>>> class BetterWriterForm(ModelForm):
+...     class Meta:
+...         model = BetterWriter
+>>> form = BetterWriterForm({'name': 'Some Name', 'score': 12})
+>>> form.is_valid()
+True
+>>> bw2 = form.save()
+>>> bw2.delete()
+
 
 >>> class WriterProfileForm(ModelForm):
 ...     class Meta:
@@ -1103,7 +1136,6 @@ True
 >>> instance.delete()
 
 # Test the non-required FileField
-
 >>> f = TextFileForm(data={'description': u'Assistance'})
 >>> f.fields['file'].required = False
 >>> f.is_valid()
@@ -1145,6 +1177,28 @@ True
 # Delete the current file since this is not done by Django.
 >>> instance.file.delete()
 >>> instance.delete()
+
+# BigIntegerField ################################################################
+>>> class BigIntForm(forms.ModelForm):
+...     class Meta:
+...         model = BigInt
+...
+>>> bif = BigIntForm({'biggie': '-9223372036854775808'})
+>>> bif.is_valid()
+True
+>>> bif = BigIntForm({'biggie': '-9223372036854775809'})
+>>> bif.is_valid()
+False
+>>> bif.errors
+{'biggie': [u'Ensure this value is greater than or equal to -9223372036854775808.']}
+>>> bif = BigIntForm({'biggie': '9223372036854775807'})
+>>> bif.is_valid()
+True
+>>> bif = BigIntForm({'biggie': '9223372036854775808'})
+>>> bif.is_valid()
+False
+>>> bif.errors
+{'biggie': [u'Ensure this value is less than or equal to 9223372036854775807.']}
 """}
 
 if test_images:
@@ -1336,27 +1390,35 @@ __test__['API_TESTS'] += """
 ...    class Meta:
 ...        model = CommaSeparatedInteger
 
->>> f = CommaSeparatedIntegerForm().fields['field']
->>> f.clean('1,2,3')
-u'1,2,3'
->>> f.clean('1a,2')
-Traceback (most recent call last):
-...
-ValidationError: [u'Enter only digits separated by commas.']
->>> f.clean(',,,,')
-u',,,,'
->>> f.clean('1.2')
-Traceback (most recent call last):
-...
-ValidationError: [u'Enter only digits separated by commas.']
->>> f.clean('1,a,2')
-Traceback (most recent call last):
-...
-ValidationError: [u'Enter only digits separated by commas.']
->>> f.clean('1,,2')
-u'1,,2'
->>> f.clean('1')
-u'1'
+>>> f = CommaSeparatedIntegerForm({'field': '1,2,3'})
+>>> f.is_valid()
+True
+>>> f.cleaned_data
+{'field': u'1,2,3'}
+>>> f = CommaSeparatedIntegerForm({'field': '1a,2'})
+>>> f.errors
+{'field': [u'Enter only digits separated by commas.']}
+>>> f = CommaSeparatedIntegerForm({'field': ',,,,'})
+>>> f.is_valid()
+True
+>>> f.cleaned_data
+{'field': u',,,,'}
+>>> f = CommaSeparatedIntegerForm({'field': '1.2'})
+>>> f.errors
+{'field': [u'Enter only digits separated by commas.']}
+>>> f = CommaSeparatedIntegerForm({'field': '1,a,2'})
+>>> f.errors
+{'field': [u'Enter only digits separated by commas.']}
+>>> f = CommaSeparatedIntegerForm({'field': '1,,2'})
+>>> f.is_valid()
+True
+>>> f.cleaned_data
+{'field': u'1,,2'}
+>>> f = CommaSeparatedIntegerForm({'field': '1'})
+>>> f.is_valid()
+True
+>>> f.cleaned_data
+{'field': u'1'}
 
 # unique/unique_together validation
 
@@ -1393,12 +1455,40 @@ False
 >>> form._errors
 {'__all__': [u'Price with this Price and Quantity already exists.']}
 
+This Price instance generated by this form is not valid because the quantity
+field is required, but the form is valid because the field is excluded from
+the form. This is for backwards compatibility.
+
 >>> class PriceForm(ModelForm):
 ...     class Meta:
 ...         model = Price
 ...         exclude = ('quantity',)
 >>> form = PriceForm({'price': '6.00'})
 >>> form.is_valid()
+True
+>>> price = form.save(commit=False)
+>>> price.full_clean()
+Traceback (most recent call last):
+  ...
+ValidationError: {'quantity': [u'This field cannot be null.']}
+
+The form should not validate fields that it doesn't contain even if they are
+specified using 'fields', not 'exclude'.
+...     class Meta:
+...         model = Price
+...         fields = ('price',)
+>>> form = PriceForm({'price': '6.00'})
+>>> form.is_valid()
+True
+
+The form should still have an instance of a model that is not complete and
+not saved into a DB yet.
+
+>>> form.instance.price
+Decimal('6.00')
+>>> form.instance.quantity is None
+True
+>>> form.instance.pk is None
 True
 
 # Unique & unique together with null values

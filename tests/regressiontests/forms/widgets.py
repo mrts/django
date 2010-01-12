@@ -10,6 +10,8 @@ tests = r"""
 ...     from decimal import Decimal
 ... except ImportError:
 ...     from django.utils._decimal import Decimal
+>>> from django.utils.translation import activate, deactivate
+>>> from django.conf import settings
 
 ###########
 # Widgets #
@@ -180,6 +182,11 @@ u'<input type="hidden" class="fun" value="\u0160\u0110\u0106\u017d\u0107\u017e\u
 >>> w = MultipleHiddenInput(attrs={'class': 'pretty'})
 >>> w.render('email', ['foo@example.com'], attrs={'class': 'special'})
 u'<input type="hidden" class="special" value="foo@example.com" name="email" />'
+
+Each input gets a separate ID.
+>>> w = MultipleHiddenInput()
+>>> w.render('letters', list('abc'), attrs={'id': 'hideme'})
+u'<input type="hidden" name="letters" value="a" id="hideme_0" />\n<input type="hidden" name="letters" value="b" id="hideme_1" />\n<input type="hidden" name="letters" value="c" id="hideme_2" />'
 
 # FileInput Widget ############################################################
 
@@ -1014,6 +1021,14 @@ True
 >>> w.render('nums', ['ŠĐĆŽćžšđ'], choices=[('ŠĐĆŽćžšđ', 'ŠĐabcĆŽćžšđ'), ('ćžšđ', 'abcćžšđ')])
 u'<ul>\n<li><label><input type="checkbox" name="nums" value="1" /> 1</label></li>\n<li><label><input type="checkbox" name="nums" value="2" /> 2</label></li>\n<li><label><input type="checkbox" name="nums" value="3" /> 3</label></li>\n<li><label><input checked="checked" type="checkbox" name="nums" value="\u0160\u0110\u0106\u017d\u0107\u017e\u0161\u0111" /> \u0160\u0110abc\u0106\u017d\u0107\u017e\u0161\u0111</label></li>\n<li><label><input type="checkbox" name="nums" value="\u0107\u017e\u0161\u0111" /> abc\u0107\u017e\u0161\u0111</label></li>\n</ul>'
 
+# Each input gets a separate ID
+>>> print CheckboxSelectMultiple().render('letters', list('ac'), choices=zip(list('abc'), list('ABC')), attrs={'id': 'abc'})
+<ul>
+<li><label for="abc_0"><input checked="checked" type="checkbox" name="letters" value="a" id="abc_0" /> A</label></li>
+<li><label for="abc_1"><input type="checkbox" name="letters" value="b" id="abc_1" /> B</label></li>
+<li><label for="abc_2"><input checked="checked" type="checkbox" name="letters" value="c" id="abc_2" /> C</label></li>
+</ul>
+
 # MultiWidget #################################################################
 
 >>> class MyMultiWidget(MultiWidget):
@@ -1082,6 +1097,13 @@ True
 False
 >>> w._has_changed(datetime.datetime(2008, 5, 6, 12, 40, 00), [u'06/05/2008', u'12:41'])
 True
+>>> activate('de-at')
+>>> settings.USE_L10N = True
+>>> w._has_changed(datetime.datetime(2008, 5, 6, 12, 40, 00), [u'06.05.2008', u'12:41'])
+True
+>>> deactivate()
+>>> settings.USE_L10N = False
+
 
 # DateTimeInput ###############################################################
 
@@ -1099,6 +1121,12 @@ u'<input type="text" name="date" value="2007-09-17 12:51:34" />'
 u'<input type="text" name="date" value="2007-09-17 12:51:34" />'
 >>> w.render('date', datetime.datetime(2007, 9, 17, 12, 51))
 u'<input type="text" name="date" value="2007-09-17 12:51:00" />'
+>>> activate('de-at')
+>>> settings.USE_L10N = True
+>>> w.render('date', d)
+u'<input type="text" name="date" value="17.09.2007 12:51:34" />'
+>>> deactivate()
+>>> settings.USE_L10N = False
 
 Use 'format' to change the way a value is displayed.
 >>> w = DateTimeInput(format='%d/%m/%Y %H:%M')
@@ -1106,6 +1134,7 @@ Use 'format' to change the way a value is displayed.
 u'<input type="text" name="date" value="17/09/2007 12:51" />'
 >>> w._has_changed(d, '17/09/2007 12:51')
 False
+
 
 # DateInput ###################################################################
 
@@ -1124,6 +1153,13 @@ u'<input type="text" name="date" value="2007-09-17" />'
 We should be able to initialize from a unicode value.
 >>> w.render('date', u'2007-09-17')
 u'<input type="text" name="date" value="2007-09-17" />'
+
+>>> activate('de-at')
+>>> settings.USE_L10N = True
+>>> w.render('date', d)
+u'<input type="text" name="date" value="17.09.2007" />'
+>>> deactivate()
+>>> settings.USE_L10N = False
 
 Use 'format' to change the way a value is displayed.
 >>> w = DateInput(format='%d/%m/%Y')
@@ -1153,6 +1189,13 @@ We should be able to initialize from a unicode value.
 >>> w.render('time', u'13:12:11')
 u'<input type="text" name="time" value="13:12:11" />'
 
+>>> activate('de-at')
+>>> settings.USE_L10N = True
+>>> w.render('date', d)
+u'<input type="text" name="date" value="17.09.2007" />'
+>>> deactivate()
+>>> settings.USE_L10N = False
+
 Use 'format' to change the way a value is displayed.
 >>> w = TimeInput(format='%H:%M')
 >>> w.render('time', t)
@@ -1176,6 +1219,12 @@ u'<input type="hidden" name="date_0" value="2007-09-17" /><input type="hidden" n
 u'<input type="hidden" name="date_0" value="2007-09-17" /><input type="hidden" name="date_1" value="12:51:34" />'
 >>> w.render('date', datetime.datetime(2007, 9, 17, 12, 51))
 u'<input type="hidden" name="date_0" value="2007-09-17" /><input type="hidden" name="date_1" value="12:51:00" />'
+>>> activate('de-at')
+>>> settings.USE_L10N = True
+>>> w.render('date', datetime.datetime(2007, 9, 17, 12, 51))
+u'<input type="hidden" name="date_0" value="17.09.2007" /><input type="hidden" name="date_1" value="12:51:00" />'
+>>> deactivate()
+>>> settings.USE_L10N = False
 
 """
 

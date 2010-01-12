@@ -3,6 +3,7 @@ from django import http, template
 from django.contrib.admin import ModelAdmin
 from django.contrib.admin import actions
 from django.contrib.auth import authenticate, login
+from django.views.decorators.csrf import csrf_protect
 from django.db.models.base import ModelBase
 from django.core.exceptions import ImproperlyConfigured
 from django.core.urlresolvers import reverse
@@ -138,7 +139,7 @@ class AdminSite(object):
         Returns True if the given HttpRequest has permission to view
         *at least one* page in the admin site.
         """
-        return request.user.is_authenticated() and request.user.is_staff
+        return request.user.is_active and request.user.is_staff
 
     def check_dependencies(self):
         """
@@ -186,6 +187,9 @@ class AdminSite(object):
             return view(request, *args, **kwargs)
         if not cacheable:
             inner = never_cache(inner)
+        # We add csrf_protect here so this function can be used as a utility
+        # function for any view, without having to repeat 'csrf_protect'.
+        inner = csrf_protect(inner)
         return update_wrapper(inner, view)
 
     def get_urls(self):
@@ -448,7 +452,7 @@ class AdminSite(object):
         import warnings
         warnings.warn(
             "AdminSite.root() is deprecated; use include(admin.site.urls) instead.",
-            PendingDeprecationWarning
+            DeprecationWarning
         )
 
         #

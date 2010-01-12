@@ -196,6 +196,17 @@ callable it will be called every time a new object is created.
 If ``False``, the field will not be editable in the admin or via forms
 automatically generated from the model class. Default is ``True``.
 
+``error_messages``
+------------------
+
+.. versionadded:: 1.2
+
+.. attribute:: Field.error_messages
+
+The ``error_messages`` argument lets you override the default messages that the
+field will raise. Pass in a dictionary with keys matching the error messages you
+want to override.
+
 ``help_text``
 -------------
 
@@ -284,6 +295,17 @@ underscores to spaces. See :ref:`Verbose field names <verbose-field-names>`.
 
 .. _model-field-types:
 
+``validators``
+-------------------
+
+.. versionadded:: 1.2
+
+.. attribute:: Field.validators
+
+A list of validators to run for this field.See the :ref:`validators
+documentation <ref-validators>` for more information.
+
+
 Field types
 ===========
 
@@ -298,6 +320,18 @@ An :class:`IntegerField` that automatically increments
 according to available IDs. You usually won't need to use this directly; a
 primary key field will automatically be added to your model if you don't specify
 otherwise. See :ref:`automatic-primary-key-fields`.
+
+``BigIntegerField``
+-------------------
+
+.. versionadded:: 1.2
+
+.. class:: BigIntegerField([**options])
+
+A 64 bit integer, much like an :class:`IntegerField` except that it is
+guaranteed to fit numbers from -9223372036854775808 to 9223372036854775807. The
+admin represents this as an ``<input type="text">`` (a single-line input).
+ 
 
 ``BooleanField``
 ----------------
@@ -543,7 +577,7 @@ By default, :class:`FileField` instances are
 created as ``varchar(100)`` columns in your database. As with other fields, you
 can change the maximum length using the :attr:`~CharField.max_length` argument.
 
-.. _`strftime formatting`: http://docs.python.org/lib/module-time.html#l2h-1941
+.. _`strftime formatting`: http://docs.python.org/library/time.html#time.strftime
 
 ``FilePathField``
 -----------------
@@ -619,8 +653,8 @@ image. Has two extra optional arguments:
     image each time the model instance is saved.
 
 In addition to the special attributes that are available for :class:`FileField`,
-an :class:`ImageField` also has ``File.height`` and ``File.width`` attributes.
-See :ref:`topics-files`.
+an :class:`ImageField` also has :attr:`~django.core.files.File.height` and
+:attr:`~django.core.files.File.width` attributes.
 
 Requires the `Python Imaging Library`_.
 
@@ -737,10 +771,11 @@ A :class:`CharField` for a URL. Has one extra optional argument:
 .. attribute:: URLField.verify_exists
 
     If ``True`` (the default), the URL given will be checked for existence
-    (i.e., the URL actually loads and doesn't give a 404 response). It should
-    be noted that when using the single-threaded development server, validating
-    a url being serverd by the same server will hang.
-    This should not be a problem for multithreaded servers.
+    (i.e., the URL actually loads and doesn't give a 404 response).
+    
+    Note that when you're using the single-threaded development server,
+    validating a URL being served by the same server will hang. This should not
+    be a problem for multithreaded servers.
 
 The admin represents this as an ``<input type="text">`` (a single-line input).
 
@@ -905,7 +940,7 @@ that control how the relationship functions.
 
     ``limit_choices_to`` has no effect when used on a ``ManyToManyField`` with a
     custom intermediate table specified using the
-    :attr:`~ManyToManyField.through` paramter.
+    :attr:`~ManyToManyField.through` parameter.
 
 .. attribute:: ManyToManyField.symmetrical
 

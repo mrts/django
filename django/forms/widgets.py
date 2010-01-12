@@ -2,12 +2,7 @@
 HTML Widget classes
 """
 
-try:
-    set
-except NameError:
-    from sets import Set as set   # Python 2.3 fallback
-
-import copy
+import django.utils.copycompat as copy
 from itertools import chain
 from django.conf import settings
 from django.utils.datastructures import MultiValueDict, MergeDict
@@ -15,7 +10,7 @@ from django.utils.html import escape, conditional_escape
 from django.utils.translation import ugettext
 from django.utils.encoding import StrAndUnicode, force_unicode
 from django.utils.safestring import mark_safe
-from django.utils import datetime_safe
+from django.utils import datetime_safe, formats
 from datetime import time
 from util import flatatt
 from urlparse import urljoin
@@ -46,7 +41,7 @@ class Media(StrAndUnicode):
 
         # Any leftover attributes must be invalid.
         # if media_attrs != {}:
-        #     raise TypeError, "'class Media' has invalid attribute(s): %s" % ','.join(media_attrs.keys())
+        #     raise TypeError("'class Media' has invalid attribute(s): %s" % ','.join(media_attrs.keys()))
 
     def __unicode__(self):
         return self.render()
@@ -213,7 +208,7 @@ class Input(Widget):
         final_attrs = self.build_attrs(attrs, type=self.input_type, name=name)
         if value != '':
             # Only add the 'value' attribute if a value is non-empty.
-            final_attrs['value'] = force_unicode(value)
+            final_attrs['value'] = force_unicode(formats.localize_input(value))
         return mark_safe(u'<input%s />' % flatatt(final_attrs))
 
 class TextInput(Input):
@@ -247,9 +242,16 @@ class MultipleHiddenInput(HiddenInput):
     def render(self, name, value, attrs=None, choices=()):
         if value is None: value = []
         final_attrs = self.build_attrs(attrs, type=self.input_type, name=name)
-        return mark_safe(u'\n'.join([(u'<input%s />' %
-            flatatt(dict(value=force_unicode(v), **final_attrs)))
-            for v in value]))
+        id_ = final_attrs.get('id', None)
+        inputs = []
+        for i, v in enumerate(value):
+            input_attrs = dict(value=force_unicode(v), **final_attrs)
+            if id_:
+                # An ID attribute was given. Add a numeric index as a suffix
+                # so that the inputs don't all have the same ID attribute.
+                input_attrs['id'] = '%s_%s' % (id_, i)
+            inputs.append(u'<input%s />' % flatatt(input_attrs))
+        return mark_safe(u'\n'.join(inputs))
 
     def value_from_datadict(self, data, files, name):
         if isinstance(data, (MultiValueDict, MergeDict)):
@@ -288,7 +290,7 @@ class Textarea(Widget):
 
 class DateInput(Input):
     input_type = 'text'
-    format = '%Y-%m-%d'     # '2006-10-25'
+    format = None
 
     def __init__(self, attrs=None, format=None):
         super(DateInput, self).__init__(attrs)
@@ -299,8 +301,7 @@ class DateInput(Input):
         if value is None:
             return ''
         elif hasattr(value, 'strftime'):
-            value = datetime_safe.new_date(value)
-            return value.strftime(self.format)
+            return formats.localize_input(value, self.format)
         return value
 
     def render(self, name, value, attrs=None):
@@ -312,7 +313,7 @@ class DateInput(Input):
 
 class DateTimeInput(Input):
     input_type = 'text'
-    format = '%Y-%m-%d %H:%M:%S'     # '2006-10-25 14:30:59'
+    format = None
 
     def __init__(self, attrs=None, format=None):
         super(DateTimeInput, self).__init__(attrs)
@@ -323,8 +324,7 @@ class DateTimeInput(Input):
         if value is None:
             return ''
         elif hasattr(value, 'strftime'):
-            value = datetime_safe.new_datetime(value)
-            return value.strftime(self.format)
+            return formats.localize_input(value, self.format)
         return value
 
     def render(self, name, value, attrs=None):
@@ -336,7 +336,7 @@ class DateTimeInput(Input):
 
 class TimeInput(Input):
     input_type = 'text'
-    format = '%H:%M:%S'     # '14:30:59'
+    format = None
 
     def __init__(self, attrs=None, format=None):
         super(TimeInput, self).__init__(attrs)
@@ -347,7 +347,7 @@ class TimeInput(Input):
         if value is None:
             return ''
         elif hasattr(value, 'strftime'):
-            return value.strftime(self.format)
+            return formats.localize_input(value, self.format)
         return value
 
     def render(self, name, value, attrs=None):
@@ -725,6 +725,8 @@ class SplitHiddenDateTimeWidget(SplitDateTimeWidget):
     """
     A Widget that splits datetime input into two <input type="hidden"> inputs.
     """
+    is_hidden = True
+
     def __init__(self, attrs=None):
         widgets = (HiddenInput(attrs=attrs), HiddenInput(attrs=attrs))
         super(SplitDateTimeWidget, self).__init__(widgets, attrs)

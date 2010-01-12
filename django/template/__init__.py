@@ -60,6 +60,7 @@ from django.utils.text import smart_split, unescape_string_literal
 from django.utils.encoding import smart_unicode, force_unicode, smart_str
 from django.utils.translation import ugettext as _
 from django.utils.safestring import SafeData, EscapeData, mark_safe, mark_for_escaping
+from django.utils.formats import localize
 from django.utils.html import escape
 
 __all__ = ('Template', 'Context', 'RequestContext', 'compile_string')
@@ -173,9 +174,16 @@ class Template(object):
             for subnode in node:
                 yield subnode
 
+    def _render(self, context):
+        return self.nodelist.render(context)
+
     def render(self, context):
         "Display stage -- can be called many times"
-        return self.nodelist.render(context)
+        context.render_context.push()
+        try:
+            return self._render(context)
+        finally:
+            context.render_context.pop()
 
 def compile_string(template_string, origin):
     "Compiles template_string into NodeList ready for rendering"
@@ -808,6 +816,7 @@ def _render_value_in_context(value, context):
     means escaping, if required, and conversion to a unicode object. If value
     is a string, it is expected to have already been translated.
     """
+    value = localize(value)
     value = force_unicode(value)
     if (context.autoescape and not isinstance(value, SafeData)) or isinstance(value, EscapeData):
         return escape(value)
@@ -942,8 +951,14 @@ class Library(object):
                         else:
                             t = get_template(file_name)
                         self.nodelist = t.nodelist
-                    return self.nodelist.render(context_class(dict,
-                            autoescape=context.autoescape))
+                    new_context = context_class(dict, autoescape=context.autoescape)
+                    # Copy across the CSRF token, if present, because inclusion
+                    # tags are often used for forms, and we need instructions
+                    # for using CSRF protection to be as simple as possible.
+                    csrf_token = context.get('csrf_token', None)
+                    if csrf_token is not None:
+                        new_context['csrf_token'] = csrf_token
+                    return self.nodelist.render(new_context)
 
             compile_func = curry(generic_tag_compiler, params, defaults, getattr(func, "_decorated_function", func).__name__, InclusionNode)
             compile_func.__doc__ = func.__doc__

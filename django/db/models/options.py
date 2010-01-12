@@ -21,7 +21,7 @@ get_verbose_name = lambda class_name: re.sub('(((?<=[a-z])[A-Z])|([A-Z](?![A-Z]|
 DEFAULT_NAMES = ('verbose_name', 'db_table', 'ordering',
                  'unique_together', 'permissions', 'get_latest_by',
                  'order_with_respect_to', 'app_label', 'db_tablespace',
-                 'abstract', 'managed', 'proxy')
+                 'abstract', 'managed', 'proxy', 'auto_created')
 
 class Options(object):
     def __init__(self, meta, app_label=None):
@@ -47,6 +47,7 @@ class Options(object):
         self.proxy_for_model = None
         self.parents = SortedDict()
         self.duplicate_targets = {}
+        self.auto_created = False
 
         # To handle various inheritance situations, we need to track where
         # managers came from (concrete or abstract base classes).
@@ -93,7 +94,7 @@ class Options(object):
 
             # Any leftover attributes must be invalid.
             if meta_attrs != {}:
-                raise TypeError, "'class Meta' got invalid attribute(s): %s" % ','.join(meta_attrs.keys())
+                raise TypeError("'class Meta' got invalid attribute(s): %s" % ','.join(meta_attrs.keys()))
         else:
             self.verbose_name_plural = string_concat(self.verbose_name, 's')
         del self.meta
@@ -273,7 +274,7 @@ class Options(object):
         for f in to_search:
             if f.name == name:
                 return f
-        raise FieldDoesNotExist, '%s has no field named %r' % (self.object_name, name)
+        raise FieldDoesNotExist('%s has no field named %r' % (self.object_name, name))
 
     def get_field_by_name(self, name):
         """
@@ -487,4 +488,3 @@ class Options(object):
         Returns the index of the primary key field in the self.fields list.
         """
         return self.fields.index(self.pk)
-

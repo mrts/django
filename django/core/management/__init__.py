@@ -152,7 +152,7 @@ def call_command(name, *args, **options):
         else:
             klass = load_command_class(app_name, name)
     except KeyError:
-        raise CommandError, "Unknown command: %r" % name
+        raise CommandError("Unknown command: %r" % name)
 
     # Grab out a list of defaults from the options. optparse does this for us
     # when the script runs from the command line, but since call_command can
@@ -299,7 +299,7 @@ class ManagementUtility(object):
 
         # subcommand
         if cword == 1:
-            print ' '.join(filter(lambda x: x.startswith(curr), subcommands))
+            print ' '.join(sorted(filter(lambda x: x.startswith(curr), subcommands)))
         # subcommand options
         # special case: the 'help' subcommand has no options
         elif cwords[0] in subcommands and cwords[0] != 'help':
@@ -328,7 +328,7 @@ class ManagementUtility(object):
             options = filter(lambda (x, v): x not in prev_opts, options)
 
             # filter options by current input
-            options = [(k, v) for k, v in options if k.startswith(curr)]
+            options = sorted([(k, v) for k, v in options if k.startswith(curr)])
             for option in options:
                 opt_label = option[0]
                 # append '=' to options which require args
@@ -358,8 +358,7 @@ class ManagementUtility(object):
         try:
             subcommand = self.argv[1]
         except IndexError:
-            sys.stderr.write("Type '%s help' for usage.\n" % self.prog_name)
-            sys.exit(1)
+            subcommand = 'help' # Display help if no arguments were given.
 
         if subcommand == 'help':
             if len(args) > 2:

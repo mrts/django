@@ -9,9 +9,11 @@ from django.utils.functional import SimpleLazyObject
 
 import timesince
 import datastructures
-import dateformat
 import itercompat
+import tzinfo
+
 from decorators import DecoratorFromMiddlewareTests
+from functional import FunctionalTestCase
 
 # We need this because "datastructures" uses sorted() and the tests are run in
 # the scope of this module.
@@ -24,9 +26,12 @@ except NameError:
 __test__ = {
     'timesince': timesince,
     'datastructures': datastructures,
-    'dateformat': dateformat,
     'itercompat': itercompat,
+    'tzinfo': tzinfo,
 }
+
+from dateformat import *
+from termcolors import *
 
 class TestUtilsHtml(TestCase):
 
@@ -219,7 +224,7 @@ class TestUtilsSimpleLazyObject(TestCase):
         self.assertEqual(_ComplexObject, SimpleLazyObject(complex_object).__class__)
 
     def test_deepcopy(self):
-        import copy
+        import django.utils.copycompat as copy
         # Check that we *can* do deep copy, and that it returns the right
         # objects.
 

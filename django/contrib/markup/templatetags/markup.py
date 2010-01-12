@@ -3,7 +3,7 @@ Set of "markup" template filters for Django.  These filters transform plain text
 markup syntaxes to HTML; currently there is support for:
 
     * Textile, which requires the PyTextile library available at
-      http://dealmeida.net/projects/textile/
+      http://loopcore.com/python-textile/
 
     * Markdown, which requires the Python-markdown library from
       http://www.freewisdom.org/projects/python-markdown
@@ -26,7 +26,7 @@ def textile(value):
         import textile
     except ImportError:
         if settings.DEBUG:
-            raise template.TemplateSyntaxError, "Error in {% textile %} filter: The Python textile library isn't installed."
+            raise template.TemplateSyntaxError("Error in {% textile %} filter: The Python textile library isn't installed.")
         return force_unicode(value)
     else:
         return mark_safe(force_unicode(textile.textile(smart_str(value), encoding='utf-8', output='utf-8')))
@@ -53,7 +53,7 @@ def markdown(value, arg=''):
         import markdown
     except ImportError:
         if settings.DEBUG:
-            raise template.TemplateSyntaxError, "Error in {% markdown %} filter: The Python markdown library isn't installed."
+            raise template.TemplateSyntaxError("Error in {% markdown %} filter: The Python markdown library isn't installed.")
         return force_unicode(value)
     else:
         # markdown.version was first added in 1.6b. The only version of markdown
@@ -81,7 +81,7 @@ def restructuredtext(value):
         from docutils.core import publish_parts
     except ImportError:
         if settings.DEBUG:
-            raise template.TemplateSyntaxError, "Error in {% restructuredtext %} filter: The Python docutils library isn't installed."
+            raise template.TemplateSyntaxError("Error in {% restructuredtext %} filter: The Python docutils library isn't installed.")
         return force_unicode(value)
     else:
         docutils_settings = getattr(settings, "RESTRUCTUREDTEXT_FILTER_SETTINGS", {})

@@ -19,12 +19,31 @@ class Song(models.Model):
     def __unicode__(self):
         return self.title
 
+    def readonly_method_on_model(self):
+        # does nothing
+        pass
+
 
 class TwoAlbumFKAndAnE(models.Model):
     album1 = models.ForeignKey(Album, related_name="album1_set")
     album2 = models.ForeignKey(Album, related_name="album2_set")
     e = models.CharField(max_length=1)
 
+
+class Author(models.Model):
+    name = models.CharField(max_length=100)
+
+
+class Book(models.Model):
+    name = models.CharField(max_length=100)
+    subtitle = models.CharField(max_length=100)
+    price = models.FloatField()
+    authors = models.ManyToManyField(Author, through='AuthorsBooks')
+
+
+class AuthorsBooks(models.Model):
+    author = models.ForeignKey(Author)
+    book = models.ForeignKey(Book)
 
 
 __test__ = {'API_TESTS':"""
@@ -94,5 +113,106 @@ Exception: <class 'regressiontests.admin_validation.models.TwoAlbumFKAndAnE'> ha
 ...     fk_name = "album1"
 
 >>> validate_inline(TwoAlbumFKAndAnEInline, None, Album)
+
+>>> class SongAdmin(admin.ModelAdmin):
+...     readonly_fields = ("title",)
+
+>>> validate(SongAdmin, Song)
+
+>>> def my_function(obj):
+...     # does nothing
+...     pass
+>>> class SongAdmin(admin.ModelAdmin):
+...     readonly_fields = (my_function,)
+
+>>> validate(SongAdmin, Song)
+
+>>> class SongAdmin(admin.ModelAdmin):
+...     readonly_fields = ("readonly_method_on_modeladmin",)
+...
+...     def readonly_method_on_modeladmin(self, obj):
+...         # does nothing
+...         pass
+
+>>> validate(SongAdmin, Song)
+
+>>> class SongAdmin(admin.ModelAdmin):
+...     readonly_fields = ("readonly_method_on_model",)
+
+>>> validate(SongAdmin, Song)
+
+>>> class SongAdmin(admin.ModelAdmin):
+...     readonly_fields = ("title", "nonexistant")
+
+>>> validate(SongAdmin, Song)
+Traceback (most recent call last):
+    ...
+ImproperlyConfigured: SongAdmin.readonly_fields[1], 'nonexistant' is not a callable or an attribute of 'SongAdmin' or found in the model 'Song'.
+
+>>> class SongAdmin(admin.ModelAdmin):
+...     readonly_fields = ("title", "awesome_song")
+...     fields = ("album", "title", "awesome_song")
+
+>>> validate(SongAdmin, Song)
+Traceback (most recent call last):
+    ...
+ImproperlyConfigured: SongAdmin.readonly_fields[1], 'awesome_song' is not a callable or an attribute of 'SongAdmin' or found in the model 'Song'.
+
+>>> class SongAdmin(SongAdmin):
+...     def awesome_song(self, instance):
+...         if instance.title == "Born to Run":
+...             return "Best Ever!"
+...         return "Status unknown."
+
+>>> validate(SongAdmin, Song)
+
+>>> class SongAdmin(admin.ModelAdmin):
+...     readonly_fields = (lambda obj: "test",)
+
+>>> validate(SongAdmin, Song)
+
+# Regression test for #12203/#12237 - Fail more gracefully when a M2M field that
+# specifies the 'through' option is included in the 'fields' or the 'fieldsets'
+# ModelAdmin options.
+
+>>> class BookAdmin(admin.ModelAdmin):
+...     fields = ['authors']
+
+>>> validate(BookAdmin, Book)
+Traceback (most recent call last):
+    ...
+ImproperlyConfigured: 'BookAdmin.fields' can't include the ManyToManyField field 'authors' because 'authors' manually specifies a 'through' model.
+
+>>> class FieldsetBookAdmin(admin.ModelAdmin):
+...     fieldsets = (
+...         ('Header 1', {'fields': ('name',)}),
+...         ('Header 2', {'fields': ('authors',)}),
+...     )
+
+>>> validate(FieldsetBookAdmin, Book)
+Traceback (most recent call last):
+   ...
+ImproperlyConfigured: 'FieldsetBookAdmin.fieldsets[1][1]['fields']' can't include the ManyToManyField field 'authors' because 'authors' manually specifies a 'through' model.
+
+>>> class NestedFieldsetAdmin(admin.ModelAdmin):
+...    fieldsets = (
+...        ('Main', {'fields': ('price', ('name', 'subtitle'))}),
+...    )
+
+>>> validate(NestedFieldsetAdmin, Book)
+
+# Regression test for #12209 -- If the explicitly provided through model
+# is specified as a string, the admin should still be able use
+# Model.m2m_field.through
+
+>>> class AuthorsInline(admin.TabularInline):
+...     model = Book.authors.through
+
+>>> class BookAdmin(admin.ModelAdmin):
+...     inlines = [AuthorsInline]
+
+# If the through model is still a string (and hasn't been resolved to a model)
+# the validation will fail.
+>>> validate(BookAdmin, Book)
 
 """}

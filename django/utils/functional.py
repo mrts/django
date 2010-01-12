@@ -167,9 +167,13 @@ def lazy(func, *resultclasses):
             for resultclass in resultclasses:
                 cls.__dispatch[resultclass] = {}
                 for (k, v) in resultclass.__dict__.items():
+                    # All __promise__ return the same wrapper method, but they
+                    # also do setup, inserting the method into the dispatch
+                    # dict.
+                    meth = cls.__promise__(resultclass, k, v)
                     if hasattr(cls, k):
                         continue
-                    setattr(cls, k, cls.__promise__(resultclass, k, v))
+                    setattr(cls, k, meth)
             cls._delegate_str = str in resultclasses
             cls._delegate_unicode = unicode in resultclasses
             assert not (cls._delegate_str and cls._delegate_unicode), "Cannot call lazy() with both str and unicode return types."
@@ -277,6 +281,13 @@ class LazyObject(object):
                 self._setup()
             setattr(self._wrapped, name, value)
 
+    def __delattr__(self, name):
+        if name == "_wrapped":
+            raise TypeError("can't delete _wrapped.")
+        if self._wrapped is None:
+            self._setup()
+        delattr(self._wrapped, name)
+
     def _setup(self):
         """
         Must be implemented by subclasses to initialise the wrapped object.
@@ -328,8 +339,10 @@ class SimpleLazyObject(LazyObject):
             memo[id(self)] = result
             return result
         else:
-            import copy
-            return copy.deepcopy(self._wrapped, memo)
+            # Changed to use deepcopy from copycompat, instead of copy
+            # For Python 2.4.
+            from django.utils.copycompat import deepcopy
+            return deepcopy(self._wrapped, memo)
 
     # Need to pretend to be the wrapped class, for the sake of objects that care
     # about this (especially in equality tests)

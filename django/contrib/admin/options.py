@@ -5,7 +5,7 @@ from django.forms.models import BaseInlineFormSet
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.admin import widgets
 from django.contrib.admin import helpers
-from django.contrib.admin.util import unquote, flatten_fieldsets, get_deleted_objects, model_ngettext, model_format_dict
+from django.contrib.admin.util import unquote, flatten_fieldsets, get_deleted_objects, model_ngettext, model_format_dict, obj_label, get_related_url
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_protect
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -676,13 +676,11 @@ class ModelAdmin(BaseModelAdmin):
                 return HttpResponseRedirect(request.path)
         elif request.POST.has_key("_popup"):
             # object changed via raw id link popup
-            return HttpResponse('<script type="text/javascript">window.close();</script>')
-            # TODO: this should update the object label in the href tag
-            # see admin/media/js/admin/RelatedObjectLookups.js#39
-            # return HttpResponse('<script type="text/javascript">
-            #   opener.dismissRelatedObjectPopup(window, "%s", "%s");</script>' % \
-                # escape() calls force_unicode.
-                # (escape(pk_value), escape(obj)))
+            obj_id = repr(force_unicode(obj._get_pk_val()))[1:]
+            obj_url = get_related_url(obj, obj.pk)
+            label = obj_label(obj).replace("&#39;", r"\'")
+            return HttpResponse('<script type="text/javascript">opener.dismissRelatedLookupPopup('
+            "window, %s, '%s', '%s');</script>" % (obj_id, obj_url, label))
         elif request.POST.has_key("_saveasnew"):
             msg = _('The %(name)s "%(obj)s" was added successfully. You may edit it again below.') % {'name': force_unicode(opts.verbose_name), 'obj': obj}
             self.message_user(request, msg)

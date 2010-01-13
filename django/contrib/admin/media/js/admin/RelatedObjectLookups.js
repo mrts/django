@@ -37,9 +37,9 @@ function windowname_to_id(text) {
 }
 
 function showRelatedObjectPopup(triggeringLink) {
-    // TODO: use proper id in name to update the label on change
-    // see admin/options.py#641
-    return openPopupWindow(triggeringLink.href, '_popup', 'showrelatedobject');
+    var name = triggeringLink.parentNode.id.replace(/^view_lookup_/, '');
+    name = id_to_windowname(name);
+    return openPopupWindow(triggeringLink.href, '_popup', name);
 }
 
 function showRelatedObjectLookupPopup(triggeringLink) {

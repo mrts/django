@@ -78,6 +78,7 @@ function dismissAddAnotherPopup(win, newId, newRepr) {
     // newId and newRepr are expected to have previously been escaped by
     // django.utils.html.escape.
     newId = html_unescape(newId);
+    var newRepr_escaped = newRepr;
     newRepr = html_unescape(newRepr);
     var name = windowname_to_id(win.name);
     var elem = document.getElementById(name);
@@ -91,6 +92,15 @@ function dismissAddAnotherPopup(win, newId, newRepr) {
                 elem.value += ',' + newId;
             } else {
                 elem.value = newId;
+            }
+
+            var nameElem = document.getElementById("view_lookup_" + name);
+            if (nameElem) {
+                var chosenIdHref = win.location.href.replace(/\/add\/[^\/]*$/,
+                    '/' + newId + '/');
+                nameElem.innerHTML = '<a href="' + chosenIdHref + '" ' +
+                  'onclick="return showRelatedObjectPopup(this);">' +
+                  newRepr_escaped + '</a>';
             }
         }
     } else {

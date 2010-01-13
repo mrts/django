@@ -151,7 +151,6 @@ class ForeignKeyRawIdWidget(forms.TextInput):
             key = self.rel.get_related_field().name
             obj = self.rel.to._default_manager.using(
                     self.db).get(**{key: value})
-            obj = self.rel.to._default_manager.get(**{key: value})
             related_url = get_related_url(obj, obj.pk)
             return ('&nbsp;<strong id="%s"><a href="%s" '
                     'onclick="return showRelatedObjectPopup(this);">%s</a>'

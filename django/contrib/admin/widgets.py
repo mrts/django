@@ -121,10 +121,10 @@ class ForeignKeyRawIdWidget(forms.TextInput):
         output = [super(ForeignKeyRawIdWidget, self).render(name, value, attrs)]
         # TODO: "id_" is hard-coded here. This should instead use the correct
         # API to determine the ID dynamically.
-        output.append('<a href="%s%s" class="related-lookup" id="lookup_id_%s" onclick="return showRelatedObjectLookupPopup(this);"> ' % \
+        output.append(' <a href="#" onclick="return clearRawId(this);"><img src="%(prefix)simg/admin/icon_deletelink.gif" width="10" height="10" alt="%(title)s" title="%(title)s" /></a>' % {'prefix': settings.ADMIN_MEDIA_PREFIX, 'title': _('Clear')})
+        output.append(' <a href="%s%s" class="related-lookup" id="lookup_id_%s" onclick="return showRelatedObjectLookupPopup(this);"> ' % \
             (related_url, url, name))
-        output.append('<img src="%simg/admin/selector-search.gif" width="16" height="16" alt="%s" /></a>' % (settings.ADMIN_MEDIA_PREFIX, _('Lookup')))
-        output.append(' <a href="#" onclick="return clearRawId(this);"><img src="%simg/admin/icon_deletelink.gif" width="10" height="10" alt="%s" /></a> ' % (settings.ADMIN_MEDIA_PREFIX, _('Clear')))
+        output.append('<img src="%(prefix)simg/admin/selector-search.gif" width="16" height="16" alt="%(title)s" title="%(title)s" /></a>' % {'prefix': settings.ADMIN_MEDIA_PREFIX, 'title': _('Lookup')})
         output.append(self.label_for_value(value, 'view_lookup_id_%s' % name))
         return mark_safe(u''.join(output))
 
@@ -153,13 +153,13 @@ class ForeignKeyRawIdWidget(forms.TextInput):
             obj = self.rel.to._default_manager.using(
                     self.db).get(**{key: value})
             related_url = get_related_url(obj, obj.pk)
-            return ('&nbsp;<strong id="%s"><a href="%s" '
+            return (' <strong id="%s"><a href="%s" '
                     'onclick="return showRelatedObjectPopup(this);">%s</a>'
                     '</strong>' % (name, related_url, obj_label(obj)))
         else:
             # a placeholder that will be filled in
             # JavaScript dismissRelatedLookupPopup()
-            return '&nbsp;<strong id="%s"></strong>' % name
+            return ' <strong id="%s"></strong>' % name
 
 class ManyToManyRawIdWidget(ForeignKeyRawIdWidget):
     """

@@ -114,10 +114,8 @@ function dismissAddAnotherPopup(win, newId, newRepr) {
 }
 
 function clearRawId(triggeringLink) {
-    // INPUT field
-    triggeringLink.previousSibling.previousSibling.previousSibling.value = '';
-    // object label
-    triggeringLink.nextSibling.nextSibling.innerHTML = '';
+    triggeringLink.previousSibling.previousSibling.value = '';
+    triggeringLink.nextSibling.nextSibling.nextSibling.nextSibling.innerHTML = '';
     return false;
 }
 

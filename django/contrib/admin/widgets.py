@@ -124,6 +124,7 @@ class ForeignKeyRawIdWidget(forms.TextInput):
         output.append('<a href="%s%s" class="related-lookup" id="lookup_id_%s" onclick="return showRelatedObjectLookupPopup(this);"> ' % \
             (related_url, url, name))
         output.append('<img src="%simg/admin/selector-search.gif" width="16" height="16" alt="%s" /></a>' % (settings.ADMIN_MEDIA_PREFIX, _('Lookup')))
+        output.append(' <a href="#" onclick="return clearRawId(this);"><img src="%simg/admin/icon_deletelink.gif" width="10" height="10" alt="%s" /></a> ' % (settings.ADMIN_MEDIA_PREFIX, _('Clear')))
         output.append(self.label_for_value(value, 'view_lookup_id_%s' % name))
         return mark_safe(u''.join(output))
 

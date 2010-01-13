@@ -74,14 +74,6 @@ function showAddAnotherPopup(triggeringLink) {
     return openPopupWindow(triggeringLink.href, '_popup', name);
 }
 
-function clearRawId(triggeringLink) {
-    // INPUT field
-    triggeringLink.previousSibling.previousSibling.previousSibling.value = '';
-    // object label
-    triggeringLink.nextSibling.nextSibling.innerHTML = '';
-    return false;
-}
-
 function dismissAddAnotherPopup(win, newId, newRepr) {
     // newId and newRepr are expected to have previously been escaped by
     // django.utils.html.escape.
@@ -119,6 +111,14 @@ function dismissAddAnotherPopup(win, newId, newRepr) {
         SelectBox.redisplay(toId);
     }
     win.close();
+}
+
+function clearRawId(triggeringLink) {
+    // INPUT field
+    triggeringLink.previousSibling.previousSibling.previousSibling.value = '';
+    // object label
+    triggeringLink.nextSibling.nextSibling.innerHTML = '';
+    return false;
 }
 
 function openPopupWindow(href, popup_var, name) {

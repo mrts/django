@@ -107,8 +107,6 @@ class ForeignKeyRawIdWidget(forms.TextInput):
     def render(self, name, value, attrs=None):
         if attrs is None:
             attrs = {}
-        # it would make sense to bind admin_site to ForeignKeyRawIdWidget as
-        # well (see RelatedFieldWidgetWrapper.__init__) for proper URL reversing
         related_url = get_related_url(self.rel.to)
         params = self.url_parameters()
         if params:
@@ -120,7 +118,6 @@ class ForeignKeyRawIdWidget(forms.TextInput):
         output = [super(ForeignKeyRawIdWidget, self).render(name, value, attrs)]
         # TODO: "id_" is hard-coded here. This should instead use the correct
         # API to determine the ID dynamically.
-        output.append(' <a href="#" onclick="return clearRawId(this);"><img src="%(prefix)simg/admin/icon_deletelink.gif" width="10" height="10" alt="%(title)s" title="%(title)s" /></a>' % {'prefix': settings.ADMIN_MEDIA_PREFIX, 'title': _('Clear')})
         output.append(' <a href="%s%s" class="related-lookup" id="lookup_id_%s" onclick="return showRelatedObjectLookupPopup(this);"> ' % \
             (related_url, url, name))
         output.append('<img src="%(prefix)simg/admin/selector-search.gif" width="16" height="16" alt="%(title)s" title="%(title)s" /></a>' % {'prefix': settings.ADMIN_MEDIA_PREFIX, 'title': _('Lookup')})
@@ -151,9 +148,16 @@ class ForeignKeyRawIdWidget(forms.TextInput):
             key = self.rel.get_related_field().name
             obj = self.rel.to._default_manager.get(**{key: value})
             related_url = get_related_url(obj, obj.pk)
-            return (' <strong id="%s"><a href="%s" '
-                    'onclick="return showRelatedObjectPopup(this);">%s</a>'
-                    '</strong>' % (name, related_url, obj_label(obj)))
+            return (' <strong id="%(name)s"><a href="%(url)s" '
+                    'onclick="return showRelatedObjectPopup(this);">%(label)s</a> '
+                    '<a href="#" onclick="return clearRawId(this);">'
+                    '<img src="%(prefix)simg/admin/icon_deletelink.gif" '
+                    'width="10" height="10" alt="%(clear)s" title="%(clear)s" />'
+                    '</a></strong>' % {'name': name, 'url': related_url,
+                        'label': obj_label(obj),
+                        'prefix': settings.ADMIN_MEDIA_PREFIX,
+                        'clear': _("Clear"),}
+                    )
         else:
             # a placeholder that will be filled in
             # JavaScript dismissRelatedLookupPopup()

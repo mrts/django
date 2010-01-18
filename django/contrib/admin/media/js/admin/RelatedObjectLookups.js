@@ -36,6 +36,34 @@ function windowname_to_id(text) {
     return text;
 }
 
+function getAdminMediaPrefix() {
+    // Deduce admin_media_prefix by looking at the <script>s in the
+    // current document and finding the URL of *this* module.
+    // Copy-paste from DateTimeShortcuts.js, makes sense as a
+    // separate function in core.js.
+    var scripts = document.getElementsByTagName('script');
+
+    for (var i=0; i < scripts.length; i++) {
+        if (scripts[i].src.match(/RelatedObjectLookups/)) {
+            var idx = scripts[i].src.indexOf('js/admin/RelatedObjectLookups');
+            return scripts[i].src.substring(0, idx);
+        }
+    }
+    // poor man's assert
+    alert('This line is unreachable. Please file a bug if you see this message.');
+}
+
+var CLEAR_RAW_ID = '<a href="#" onclick="return clearRawId(this);">' +
+'<img src="' + getAdminMediaPrefix() + 'img/admin/icon_deletelink.gif" ' +
+'width="10" height="10" alt="Clear" title="Clear" /></a>';
+
+// FIXME: the following produce 'gettext is not defined' errors in FireBug.
+// Needs to be tracked down.
+// (jsi18n is generally included before this in admin templates)
+//
+// 'width="10" height="10" alt="' + gettext('Clear') + '" title="' +
+// gettext('Clear') + '" /></a>';
+
 function showRelatedObjectPopup(triggeringLink) {
     var name = triggeringLink.parentNode.id.replace(/^view_lookup_/, '');
     name = id_to_windowname(name);
@@ -62,7 +90,7 @@ function dismissRelatedLookupPopup(win, chosenId, chosenIdHref, chosenName) {
     if (nameElem) {
       nameElem.innerHTML = '<a href="' + chosenIdHref + '" ' +
        'onclick="return showRelatedObjectPopup(this);">' +
-        html_escape(chosenName) + '</a>';
+        html_escape(chosenName) + '</a> ' + CLEAR_RAW_ID;
     }
 
     win.close();
@@ -100,7 +128,7 @@ function dismissAddAnotherPopup(win, newId, newRepr) {
                     '/' + newId + '/');
                 nameElem.innerHTML = '<a href="' + chosenIdHref + '" ' +
                   'onclick="return showRelatedObjectPopup(this);">' +
-                  newRepr_escaped + '</a>';
+                  newRepr_escaped + '</a> ' + CLEAR_RAW_ID;
             }
         }
     } else {
@@ -114,8 +142,8 @@ function dismissAddAnotherPopup(win, newId, newRepr) {
 }
 
 function clearRawId(triggeringLink) {
-    triggeringLink.previousSibling.previousSibling.value = '';
-    triggeringLink.nextSibling.nextSibling.nextSibling.nextSibling.innerHTML = '';
+    triggeringLink.parentNode.previousSibling.previousSibling.previousSibling.previousSibling.value = '';
+    triggeringLink.parentNode.innerHTML = '';
     return false;
 }
 

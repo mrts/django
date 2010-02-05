@@ -411,6 +411,11 @@ class ModelAdmin(BaseModelAdmin):
         for inline in self.inline_instances:
             yield inline.get_formset(request, obj)
 
+    def formsets_are_valid(self, formsets, form, form_validated, new_object,
+            request):
+        "Hook for doing combined form/formset validation."
+        return all_valid(formsets)
+
     def log_addition(self, request, object):
         """
         Log that an object has been successfully added.
@@ -785,7 +790,8 @@ class ModelAdmin(BaseModelAdmin):
                                   save_as_new=request.POST.has_key("_saveasnew"),
                                   prefix=prefix, queryset=inline.queryset(request))
                 formsets.append(formset)
-            if all_valid(formsets) and form_validated:
+            if self.formsets_are_valid(formsets, form, form_validated,
+                    new_object, request) and form_validated:
                 self.save_model(request, new_object, form, change=False)
                 form.save_m2m()
                 for formset in formsets:
@@ -885,7 +891,8 @@ class ModelAdmin(BaseModelAdmin):
 
                 formsets.append(formset)
 
-            if all_valid(formsets) and form_validated:
+            if self.formsets_are_valid(formsets, form, form_validated,
+                    new_object, request) and form_validated:
                 self.save_model(request, new_object, form, change=True)
                 form.save_m2m()
                 for formset in formsets:

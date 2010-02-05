@@ -12,6 +12,7 @@ __all__ = ('BaseFormSet', 'all_valid')
 # special field names
 TOTAL_FORM_COUNT = 'TOTAL_FORMS'
 INITIAL_FORM_COUNT = 'INITIAL_FORMS'
+MAX_NUM_FORM_COUNT = 'MAX_NUM_FORMS'
 ORDERING_FIELD_NAME = 'ORDER'
 DELETION_FIELD_NAME = 'DELETE'
 
@@ -24,6 +25,7 @@ class ManagementForm(Form):
     def __init__(self, *args, **kwargs):
         self.base_fields[TOTAL_FORM_COUNT] = IntegerField(widget=HiddenInput)
         self.base_fields[INITIAL_FORM_COUNT] = IntegerField(widget=HiddenInput)
+        self.base_fields[MAX_NUM_FORM_COUNT] = IntegerField(widget=HiddenInput)
         super(ManagementForm, self).__init__(*args, **kwargs)
 
 class BaseFormSet(StrAndUnicode):
@@ -56,7 +58,8 @@ class BaseFormSet(StrAndUnicode):
         else:
             form = ManagementForm(auto_id=self.auto_id, prefix=self.prefix, initial={
                 TOTAL_FORM_COUNT: self.total_form_count(),
-                INITIAL_FORM_COUNT: self.initial_form_count()
+                INITIAL_FORM_COUNT: self.initial_form_count(),
+                MAX_NUM_FORM_COUNT: self.max_num
             })
         return form
     management_form = property(_management_form)
@@ -118,6 +121,21 @@ class BaseFormSet(StrAndUnicode):
         """Return a list of all the extra forms in this formset."""
         return self.forms[self.initial_form_count():]
     extra_forms = property(_get_extra_forms)
+
+    def _get_empty_form(self, **kwargs):
+        defaults = {
+            'auto_id': self.auto_id,
+            'prefix': self.add_prefix('__prefix__'),
+            'empty_permitted': True,
+        }
+        if self.data or self.files:
+            defaults['data'] = self.data
+            defaults['files'] = self.files
+        defaults.update(kwargs)
+        form = self.form(**defaults)
+        self.add_fields(form, None)
+        return form
+    empty_form = property(_get_empty_form)
 
     # Maybe this should just go away?
     def _get_cleaned_data(self):
@@ -268,7 +286,7 @@ class BaseFormSet(StrAndUnicode):
         """A hook for adding extra fields on to each form instance."""
         if self.can_order:
             # Only pre-fill the ordering field for initial forms.
-            if index < self.initial_form_count():
+            if index is not None and index < self.initial_form_count():
                 form.fields[ORDERING_FIELD_NAME] = IntegerField(label=_(u'Order'), initial=index+1, required=False)
             else:
                 form.fields[ORDERING_FIELD_NAME] = IntegerField(label=_(u'Order'), required=False)

@@ -200,6 +200,7 @@ class ModelAdmin(BaseModelAdmin):
     inlines = []
 
     # Custom templates (designed to be over-ridden in subclasses)
+    add_form_template = None
     change_form_template = None
     change_list_template = None
     delete_confirmation_template = None
@@ -267,7 +268,7 @@ class ModelAdmin(BaseModelAdmin):
 
         js = ['js/core.js', 'js/admin/RelatedObjectLookups.js']
         if self.actions is not None:
-            js.extend(['js/getElementsBySelector.js', 'js/actions.js'])
+            js.extend(['js/jquery.min.js', 'js/actions.min.js'])
         if self.prepopulated_fields:
             js.append('js/urlify.js')
         if self.opts.get_ordered_objects():
@@ -618,8 +619,12 @@ class ModelAdmin(BaseModelAdmin):
             'save_on_top': self.save_on_top,
             'root_path': self.admin_site.root_path,
         })
+        if add and self.add_form_template is not None:
+            form_template = self.add_form_template
+        else:
+            form_template = self.change_form_template
         context_instance = template.RequestContext(request, current_app=self.admin_site.name)
-        return render_to_response(self.change_form_template or [
+        return render_to_response(form_template or [
             "admin/%s/%s/change_form.html" % (app_label, opts.object_name.lower()),
             "admin/%s/change_form.html" % app_label,
             "admin/change_form.html"
@@ -719,18 +724,24 @@ class ModelAdmin(BaseModelAdmin):
         # If the form's valid we can handle the action.
         if action_form.is_valid():
             action = action_form.cleaned_data['action']
+            select_across = action_form.cleaned_data['select_across']
             func, name, description = self.get_actions(request)[action]
 
             # Get the list of selected PKs. If nothing's selected, we can't
-            # perform an action on it, so bail.
+            # perform an action on it, so bail. Except we want to perform
+            # the action explicitely on all objects.
             selected = request.POST.getlist(helpers.ACTION_CHECKBOX_NAME)
-            if not selected:
+            if not selected and not select_across:
                 # Reminder that something needs to be selected or nothing will happen
                 msg = _("Items must be selected in order to perform actions on them. No items have been changed.")
                 self.message_user(request, msg)
                 return None
 
-            response = func(self, request, queryset.filter(pk__in=selected))
+            if not select_across:
+                # Perform the action only on the selected objects
+                queryset = queryset.filter(pk__in=selected)
+
+            response = func(self, request, queryset)
 
             # Actions may return an HttpResponse, which will be used as the
             # response from the POST. If not, we'll be a good little HTTP
@@ -1182,7 +1193,7 @@ class InlineModelAdmin(BaseModelAdmin):
 
     def _media(self):
         from django.conf import settings
-        js = []
+        js = ['js/jquery.min.js', 'js/inlines.min.js']
         if self.prepopulated_fields:
             js.append('js/urlify.js')
         if self.filter_vertical or self.filter_horizontal:

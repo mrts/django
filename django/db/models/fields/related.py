@@ -1,4 +1,5 @@
-from django.db import connection, transaction, DEFAULT_DB_ALIAS
+from django.conf import settings
+from django.db import connection, router, transaction
 from django.db.backends import util
 from django.db.models import signals, get_model
 from django.db.models.fields import (AutoField, Field, IntegerField,
@@ -188,7 +189,7 @@ class SingleRelatedObjectDescriptor(object):
     # SingleRelatedObjectDescriptor instance.
     def __init__(self, related):
         self.related = related
-        self.cache_name = '_%s_cache' % related.get_accessor_name()
+        self.cache_name = related.get_cache_name()
 
     def __get__(self, instance, instance_type=None):
         if instance is None:
@@ -197,7 +198,8 @@ class SingleRelatedObjectDescriptor(object):
             return getattr(instance, self.cache_name)
         except AttributeError:
             params = {'%s__pk' % self.related.field.name: instance._get_pk_val()}
-            rel_obj = self.related.model._base_manager.using(instance._state.db).get(**params)
+            db = router.db_for_read(instance.__class__, instance=instance)
+            rel_obj = self.related.model._base_manager.using(db).get(**params)
             setattr(instance, self.cache_name, rel_obj)
             return rel_obj
 
@@ -218,6 +220,15 @@ class SingleRelatedObjectDescriptor(object):
             raise ValueError('Cannot assign "%r": "%s.%s" must be a "%s" instance.' %
                                 (value, instance._meta.object_name,
                                  self.related.get_accessor_name(), self.related.opts.object_name))
+        elif value is not None:
+            if instance._state.db is None:
+                instance._state.db = router.db_for_write(instance.__class__, instance=value)
+            elif value._state.db is None:
+                value._state.db = router.db_for_write(value.__class__, instance=instance)
+            elif value._state.db is not None and instance._state.db is not None:
+                if not router.allow_relation(value, instance):
+                    raise ValueError('Cannot assign "%r": instance is on database "%s", value is is on database "%s"' %
+                                        (value, instance._state.db, value._state.db))
 
         # Set the value of the related field to the value of the related object's related field
         setattr(value, self.related.field.attname, getattr(instance, self.related.field.rel.get_related_field().attname))
@@ -260,11 +271,11 @@ class ReverseSingleRelatedObjectDescriptor(object):
             # If the related manager indicates that it should be used for
             # related fields, respect that.
             rel_mgr = self.field.rel.to._default_manager
-            using = instance._state.db or DEFAULT_DB_ALIAS
+            db = router.db_for_read(self.field.rel.to, instance=instance)
             if getattr(rel_mgr, 'use_for_related_fields', False):
-                rel_obj = rel_mgr.using(using).get(**params)
+                rel_obj = rel_mgr.using(db).get(**params)
             else:
-                rel_obj = QuerySet(self.field.rel.to).using(using).get(**params)
+                rel_obj = QuerySet(self.field.rel.to).using(db).get(**params)
             setattr(instance, cache_name, rel_obj)
             return rel_obj
 
@@ -281,14 +292,15 @@ class ReverseSingleRelatedObjectDescriptor(object):
             raise ValueError('Cannot assign "%r": "%s.%s" must be a "%s" instance.' %
                                 (value, instance._meta.object_name,
                                  self.field.name, self.field.rel.to._meta.object_name))
-        elif value is not None and value._state.db != instance._state.db:
+        elif value is not None:
             if instance._state.db is None:
-                instance._state.db = value._state.db
-            else:#elif value._state.db is None:
-                value._state.db = instance._state.db
-#            elif value._state.db is not None and instance._state.db is not None:
-#                raise ValueError('Cannot assign "%r": instance is on database "%s", value is is on database "%s"' %
-#                                    (value, instance._state.db, value._state.db))
+                instance._state.db = router.db_for_write(instance.__class__, instance=value)
+            elif value._state.db is None:
+                value._state.db = router.db_for_write(value.__class__, instance=instance)
+            elif value._state.db is not None and instance._state.db is not None:
+                if not router.allow_relation(value, instance):
+                    raise ValueError('Cannot assign "%r": instance is on database "%s", value is is on database "%s"' %
+                                        (value, instance._state.db, value._state.db))
 
         # If we're setting the value of a OneToOneField to None, we need to clear
         # out the cache on any old related object. Otherwise, deleting the
@@ -307,7 +319,7 @@ class ReverseSingleRelatedObjectDescriptor(object):
             # cache. This cache also might not exist if the related object
             # hasn't been accessed yet.
             if related:
-                cache_name = '_%s_cache' % self.field.related.get_accessor_name()
+                cache_name = self.field.related.get_cache_name()
                 try:
                     delattr(related, cache_name)
                 except AttributeError:
@@ -370,15 +382,15 @@ class ForeignRelatedObjectsDescriptor(object):
 
         class RelatedManager(superclass):
             def get_query_set(self):
-                using = instance._state.db or DEFAULT_DB_ALIAS
-                return superclass.get_query_set(self).using(using).filter(**(self.core_filters))
+                db = router.db_for_read(rel_model, instance=instance)
+                return superclass.get_query_set(self).using(db).filter(**(self.core_filters))
 
             def add(self, *objs):
                 for obj in objs:
                     if not isinstance(obj, self.model):
                         raise TypeError("'%s' instance expected" % self.model._meta.object_name)
                     setattr(obj, rel_field.name, instance)
-                    obj.save(using=instance._state.db)
+                    obj.save()
             add.alters_data = True
 
             def create(self, **kwargs):
@@ -390,8 +402,8 @@ class ForeignRelatedObjectsDescriptor(object):
                 # Update kwargs with the related object that this
                 # ForeignRelatedObjectsDescriptor knows about.
                 kwargs.update({rel_field.name: instance})
-                using = instance._state.db or DEFAULT_DB_ALIAS
-                return super(RelatedManager, self).using(using).get_or_create(**kwargs)
+                db = router.db_for_write(rel_model, instance=instance)
+                return super(RelatedManager, self).using(db).get_or_create(**kwargs)
             get_or_create.alters_data = True
 
             # remove() and clear() are only provided if the ForeignKey can have a value of null.
@@ -402,7 +414,7 @@ class ForeignRelatedObjectsDescriptor(object):
                         # Is obj actually part of this descriptor set?
                         if getattr(obj, rel_field.attname) == val:
                             setattr(obj, rel_field.name, None)
-                            obj.save(using=instance._state.db)
+                            obj.save()
                         else:
                             raise rel_field.rel.to.DoesNotExist("%r is not related to %r." % (obj, instance))
                 remove.alters_data = True
@@ -410,7 +422,7 @@ class ForeignRelatedObjectsDescriptor(object):
                 def clear(self):
                     for obj in self.all():
                         setattr(obj, rel_field.name, None)
-                        obj.save(using=instance._state.db)
+                        obj.save()
                 clear.alters_data = True
 
         manager = RelatedManager()
@@ -427,7 +439,8 @@ def create_many_related_manager(superclass, rel=False):
     through = rel.through
     class ManyRelatedManager(superclass):
         def __init__(self, model=None, core_filters=None, instance=None, symmetrical=None,
-                join_table=None, source_field_name=None, target_field_name=None):
+                join_table=None, source_field_name=None, target_field_name=None,
+                reverse=False):
             super(ManyRelatedManager, self).__init__()
             self.core_filters = core_filters
             self.model = model
@@ -437,11 +450,13 @@ def create_many_related_manager(superclass, rel=False):
             self.target_field_name = target_field_name
             self.through = through
             self._pk_val = self.instance.pk
+            self.reverse = reverse
             if self._pk_val is None:
                 raise ValueError("%r instance needs to have a primary key value before a many-to-many relationship can be used." % instance.__class__.__name__)
 
         def get_query_set(self):
-            return superclass.get_query_set(self).using(self.instance._state.db)._next_is_sticky().filter(**(self.core_filters))
+            db = router.db_for_read(self.instance.__class__, instance=self.instance)
+            return superclass.get_query_set(self).using(db)._next_is_sticky().filter(**(self.core_filters))
 
         # If the ManyToMany relation has an intermediary model,
         # the add and remove methods do not exist.
@@ -476,14 +491,16 @@ def create_many_related_manager(superclass, rel=False):
             if not rel.through._meta.auto_created:
                 opts = through._meta
                 raise AttributeError("Cannot use create() on a ManyToManyField which specifies an intermediary model. Use %s.%s's Manager instead." % (opts.app_label, opts.object_name))
-            new_obj = super(ManyRelatedManager, self).using(self.instance._state.db).create(**kwargs)
+            db = router.db_for_write(self.instance.__class__, instance=self.instance)
+            new_obj = super(ManyRelatedManager, self).using(db).create(**kwargs)
             self.add(new_obj)
             return new_obj
         create.alters_data = True
 
         def get_or_create(self, **kwargs):
+            db = router.db_for_write(self.instance.__class__, instance=self.instance)
             obj, created = \
-                    super(ManyRelatedManager, self).using(self.instance._state.db).get_or_create(**kwargs)
+                super(ManyRelatedManager, self).using(db).get_or_create(**kwargs)
             # We only need to add() if created because if we got an object back
             # from get() then the relationship already exists.
             if created:
@@ -503,27 +520,33 @@ def create_many_related_manager(superclass, rel=False):
                 new_ids = set()
                 for obj in objs:
                     if isinstance(obj, self.model):
-#                        if obj._state.db != self.instance._state.db:
-#                            raise ValueError('Cannot add "%r": instance is on database "%s", value is is on database "%s"' %
-#                                                (obj, self.instance._state.db, obj._state.db))
+                        if not router.allow_relation(obj, self.instance):
+                           raise ValueError('Cannot add "%r": instance is on database "%s", value is is on database "%s"' %
+                                               (obj, self.instance._state.db, obj._state.db))
                         new_ids.add(obj.pk)
                     elif isinstance(obj, Model):
                         raise TypeError("'%s' instance expected" % self.model._meta.object_name)
                     else:
                         new_ids.add(obj)
-                vals = self.through._default_manager.using(self.instance._state.db).values_list(target_field_name, flat=True)
+                db = router.db_for_write(self.through.__class__, instance=self.instance)
+                vals = self.through._default_manager.using(db).values_list(target_field_name, flat=True)
                 vals = vals.filter(**{
                     source_field_name: self._pk_val,
                     '%s__in' % target_field_name: new_ids,
                 })
-                vals = set(vals)
-
+                new_ids = new_ids - set(vals)
                 # Add the ones that aren't there already
-                for obj_id in (new_ids - vals):
-                    self.through._default_manager.using(self.instance._state.db).create(**{
+                for obj_id in new_ids:
+                    self.through._default_manager.using(db).create(**{
                         '%s_id' % source_field_name: self._pk_val,
                         '%s_id' % target_field_name: obj_id,
                     })
+                if self.reverse or source_field_name == self.source_field_name:
+                    # Don't send the signal when we are inserting the
+                    # duplicate data row for symmetrical reverse entries.
+                    signals.m2m_changed.send(sender=rel.through, action='add',
+                        instance=self.instance, reverse=self.reverse,
+                        model=self.model, pk_set=new_ids)
 
         def _remove_items(self, source_field_name, target_field_name, *objs):
             # source_col_name: the PK colname in join_table for the source object
@@ -540,14 +563,28 @@ def create_many_related_manager(superclass, rel=False):
                     else:
                         old_ids.add(obj)
                 # Remove the specified objects from the join table
-                self.through._default_manager.using(self.instance._state.db).filter(**{
+                db = router.db_for_write(self.through.__class__, instance=self.instance)
+                self.through._default_manager.using(db).filter(**{
                     source_field_name: self._pk_val,
                     '%s__in' % target_field_name: old_ids
                 }).delete()
+                if self.reverse or source_field_name == self.source_field_name:
+                    # Don't send the signal when we are deleting the
+                    # duplicate data row for symmetrical reverse entries.
+                    signals.m2m_changed.send(sender=rel.through, action="remove",
+                        instance=self.instance, reverse=self.reverse,
+                        model=self.model, pk_set=old_ids)
 
         def _clear_items(self, source_field_name):
             # source_col_name: the PK colname in join_table for the source object
-            self.through._default_manager.using(self.instance._state.db).filter(**{
+            if self.reverse or source_field_name == self.source_field_name:
+                # Don't send the signal when we are clearing the
+                # duplicate data rows for symmetrical reverse entries.
+                signals.m2m_changed.send(sender=rel.through, action="clear",
+                    instance=self.instance, reverse=self.reverse,
+                    model=self.model, pk_set=None)
+            db = router.db_for_write(self.through.__class__, instance=self.instance)
+            self.through._default_manager.using(db).filter(**{
                 source_field_name: self._pk_val
             }).delete()
 
@@ -579,7 +616,8 @@ class ManyRelatedObjectsDescriptor(object):
             instance=instance,
             symmetrical=False,
             source_field_name=self.related.field.m2m_reverse_field_name(),
-            target_field_name=self.related.field.m2m_field_name()
+            target_field_name=self.related.field.m2m_field_name(),
+            reverse=True
         )
 
         return manager
@@ -595,6 +633,7 @@ class ManyRelatedObjectsDescriptor(object):
         manager = self.__get__(instance)
         manager.clear()
         manager.add(*value)
+
 
 class ReverseManyRelatedObjectsDescriptor(object):
     # This class provides the functionality that makes the related-object
@@ -629,7 +668,8 @@ class ReverseManyRelatedObjectsDescriptor(object):
             instance=instance,
             symmetrical=(self.field.rel.symmetrical and isinstance(instance, rel_model)),
             source_field_name=self.field.m2m_field_name(),
-            target_field_name=self.field.m2m_reverse_field_name()
+            target_field_name=self.field.m2m_reverse_field_name(),
+            reverse=False
         )
 
         return manager
@@ -748,11 +788,12 @@ class ForeignKey(RelatedField, Field):
         super(ForeignKey, self).validate(value, model_instance)
         if not value:
             return
-        try:
-            self.rel.to._default_manager.get(**{self.rel.field_name:value})
-        except self.rel.to.DoesNotExist, e:
-            raise exceptions.ValidationError(
-                    self.error_messages['invalid'] % {'model': self.rel.to._meta.verbose_name, 'pk': value})
+
+        qs = self.rel.to._default_manager.filter(**{self.rel.field_name:value})
+        qs = qs.complex_filter(self.rel.limit_choices_to)
+        if not qs.exists():
+            raise exceptions.ValidationError(self.error_messages['invalid'] % {
+                'model': self.rel.to._meta.verbose_name, 'pk': value})
 
     def get_attname(self):
         return '%s_id' % self.name
@@ -859,8 +900,8 @@ def create_many_to_many_intermediary_model(field, klass):
     from django.db import models
     managed = True
     if isinstance(field.rel.to, basestring) and field.rel.to != RECURSIVE_RELATIONSHIP_CONSTANT:
-        to = field.rel.to
         to_model = field.rel.to
+        to = to_model.split('.')[-1]
         def set_managed(field, model, cls):
             field.rel.through._meta.managed = model._meta.managed or cls._meta.managed
         add_lazy_relation(klass, field, to_model, set_managed)

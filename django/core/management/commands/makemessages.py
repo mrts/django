@@ -2,20 +2,11 @@ import re
 import os
 import sys
 import glob
-import warnings
 from itertools import dropwhile
 from optparse import make_option
+from subprocess import PIPE, Popen
 
 from django.core.management.base import CommandError, BaseCommand
-
-try:
-    set
-except NameError:
-    from sets import Set as set     # For Python 2.3
-
-# Intentionally silence DeprecationWarnings about os.popen3 in Python 2.6. It's
-# still sensible for us to use it, since subprocess didn't exist in 2.3.
-warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'os\.popen3')
 
 pythonize_re = re.compile(r'\n\s*//')
 
@@ -43,6 +34,13 @@ def handle_extensions(extensions=('html',)):
     # are handled in make_messages() (they are copied to file.ext.py files to
     # trick xgettext to parse them as Python files)
     return set([x for x in ext_list if x != '.py'])
+
+def _popen(cmd):
+    """
+    Friendly wrapper around Popen for Windows
+    """
+    p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE, close_fds=os.name != 'nt', universal_newlines=True)
+    return p.communicate()
 
 def make_messages(locale=None, domain='django', verbosity='1', all=False, extensions=None):
     """
@@ -76,29 +74,21 @@ def make_messages(locale=None, domain='django', verbosity='1', all=False, extens
             message = "usage: make-messages.py -l <language>\n   or: make-messages.py -a\n"
         raise CommandError(message)
 
-    # xgettext versions prior to 0.15 assumed Python source files were encoded
-    # in iso-8859-1, and produce utf-8 output.  In the case where xgettext is
-    # given utf-8 input (required for Django files with non-ASCII characters),
-    # this results in a utf-8 re-encoding of the original utf-8 that needs to be
-    # undone to restore the original utf-8.  So we check the xgettext version
-    # here once and set a flag to remember if a utf-8 decoding needs to be done
-    # on xgettext's output for Python files.  We default to assuming this isn't
-    # necessary if we run into any trouble determining the version.
-    xgettext_reencodes_utf8 = False
-    (stdin, stdout, stderr) = os.popen3('xgettext --version', 't')
-    match = re.search(r'(?P<major>\d+)\.(?P<minor>\d+)', stdout.read())
+    # We require gettext version 0.15 or newer.
+    output = _popen('xgettext --version')[0]
+    match = re.search(r'(?P<major>\d+)\.(?P<minor>\d+)', output)
     if match:
         xversion = (int(match.group('major')), int(match.group('minor')))
         if xversion < (0, 15):
-            xgettext_reencodes_utf8 = True
- 
+            raise CommandError("Django internationalization requires GNU gettext 0.15 or newer. You are using version %s, please upgrade your gettext toolset." % match.group())
+
     languages = []
     if locale is not None:
         languages.append(locale)
     elif all:
-        locale_dirs = filter(os.path.isdir, glob.glob('%s/*' % localedir)) 
+        locale_dirs = filter(os.path.isdir, glob.glob('%s/*' % localedir))
         languages = [os.path.basename(l) for l in locale_dirs]
-    
+
     for locale in languages:
         if verbosity > 0:
             print "processing language", locale
@@ -126,9 +116,7 @@ def make_messages(locale=None, domain='django', verbosity='1', all=False, extens
                 thefile = '%s.py' % file
                 open(os.path.join(dirpath, thefile), "w").write(src)
                 cmd = 'xgettext -d %s -L Perl --keyword=gettext_noop --keyword=gettext_lazy --keyword=ngettext_lazy:1,2 --from-code UTF-8 -o - "%s"' % (domain, os.path.join(dirpath, thefile))
-                (stdin, stdout, stderr) = os.popen3(cmd, 't')
-                msgs = stdout.read()
-                errors = stderr.read()
+                msgs, errors = _popen(cmd)
                 if errors:
                     raise CommandError("errors happened while running xgettext on %s\n%s" % (file, errors))
                 old = '#: '+os.path.join(dirpath, thefile)[2:]
@@ -156,14 +144,9 @@ def make_messages(locale=None, domain='django', verbosity='1', all=False, extens
                     sys.stdout.write('processing file %s in %s\n' % (file, dirpath))
                 cmd = 'xgettext -d %s -L Python --keyword=gettext_noop --keyword=gettext_lazy --keyword=ngettext_lazy:1,2 --keyword=ugettext_noop --keyword=ugettext_lazy --keyword=ungettext_lazy:1,2 --from-code UTF-8 -o - "%s"' % (
                     domain, os.path.join(dirpath, thefile))
-                (stdin, stdout, stderr) = os.popen3(cmd, 't')
-                msgs = stdout.read()
-                errors = stderr.read()
+                msgs, errors = _popen(cmd)
                 if errors:
                     raise CommandError("errors happened while running xgettext on %s\n%s" % (file, errors))
-
-                if xgettext_reencodes_utf8:
-                    msgs = msgs.decode('utf-8').encode('iso-8859-1')
 
                 if thefile != file:
                     old = '#: '+os.path.join(dirpath, thefile)[2:]
@@ -180,16 +163,12 @@ def make_messages(locale=None, domain='django', verbosity='1', all=False, extens
                     os.unlink(os.path.join(dirpath, thefile))
 
         if os.path.exists(potfile):
-            (stdin, stdout, stderr) = os.popen3('msguniq --to-code=utf-8 "%s"' % potfile, 't')
-            msgs = stdout.read()
-            errors = stderr.read()
+            msgs, errors = _popen('msguniq --to-code=utf-8 "%s"' % potfile)
             if errors:
                 raise CommandError("errors happened while running msguniq\n%s" % errors)
             open(potfile, 'w').write(msgs)
             if os.path.exists(pofile):
-                (stdin, stdout, stderr) = os.popen3('msgmerge -q "%s" "%s"' % (pofile, potfile), 't')
-                msgs = stdout.read()
-                errors = stderr.read()
+                msgs, errors = _popen('msgmerge -q "%s" "%s"' % (pofile, potfile))
                 if errors:
                     raise CommandError("errors happened while running msgmerge\n%s" % errors)
             open(pofile, 'wb').write(msgs)

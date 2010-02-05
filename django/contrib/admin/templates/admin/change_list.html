@@ -17,6 +17,17 @@
   {% endif %}
 {% endblock %}
 
+{% block extrahead %}
+{{ block.super }}
+<script type="text/javascript">
+(function($) {
+    $(document).ready(function($) {
+        $("tr input.action-select").actions();
+    });
+})(jQuery.noConflict());
+</script>
+{% endblock %}
+
 {% block bodyclass %}change-list{% endblock %}
 
 {% if not is_popup %}

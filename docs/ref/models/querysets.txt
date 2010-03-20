@@ -106,6 +106,14 @@ the query construction and is not part of the public API. However, it is safe
 (and fully supported) to pickle and unpickle the attribute's contents as
 described here.
 
+.. admonition:: You can't share pickles between versions
+
+	Pickles of QuerySets are only valid for the version of Django that
+	was used to generate them. If you generate a pickle using Django
+	version N, there is no guarantee that pickle will be readable with
+	Django version N+1. Pickles should not be used as part of a long-term
+	archival strategy.
+
 .. _pickle: http://docs.python.org/library/pickle.html
 
 .. _queryset-api:
@@ -353,8 +361,8 @@ query spans multiple tables, it's possible to get duplicate results when a
 ``values(*fields)``
 ~~~~~~~~~~~~~~~~~~~
 
-Returns a ``ValuesQuerySet`` -- a ``QuerySet`` that evaluates to a list of
-dictionaries instead of model-instance objects.
+Returns a ``ValuesQuerySet`` -- a ``QuerySet`` that returns dictionaries when
+used as an iterable, rather than model-instance objects.
 
 Each of those dictionaries represents an object, with the keys corresponding to
 the attribute names of model objects.
@@ -438,10 +446,10 @@ individualism.
 
 .. versionadded:: 1.0
 
-This is similar to ``values()`` except that instead of returning a list of
-dictionaries, it returns a list of tuples. Each tuple contains the value from
-the respective field passed into the ``values_list()`` call -- so the first
-item is the first field, etc. For example::
+This is similar to ``values()`` except that instead of returning dictionaries,
+it returns tuples when iterated over. Each tuple contains the value from the
+respective field passed into the ``values_list()`` call -- so the first item is
+the first field, etc. For example::
 
     >>> Entry.objects.values_list('id', 'headline')
     [(1, u'First entry'), ...]
@@ -820,7 +828,7 @@ the database.
 
 This is done by passing the names of the fields to not load to ``defer()``::
 
-    Entry.objects.defer("lede", "body")
+    Entry.objects.defer("headline", "body")
 
 A queryset that has deferred fields will still return model instances. Each
 deferred field will be retrieved from the database if you access that field
@@ -830,7 +838,7 @@ You can make multiple calls to ``defer()``. Each call adds new fields to the
 deferred set::
 
     # Defers both the body and lede fields.
-    Entry.objects.defer("body").filter(headline="Lennon").defer("lede")
+    Entry.objects.defer("body").filter(rating=5).defer("headline")
 
 The order in which fields are added to the deferred set does not matter. Calling ``defer()`` with a field name that has already been deferred is harmless (the field will still be deferred).
 
@@ -838,7 +846,7 @@ You can defer loading of fields in related models (if the related models are
 loading via ``select_related()``) by using the standard double-underscore
 notation to separate related fields::
 
-    Blog.objects.select_related().defer("entry__lede", "entry__body")
+    Blog.objects.select_related().defer("entry__headline", "entry__body")
 
 If you want to clear the set of deferred fields, pass ``None`` as a parameter
 to ``defer()``::
@@ -1183,6 +1191,8 @@ specified as keyword arguments to the ``QuerySet`` methods ``filter()``,
 
 For an introduction, see :ref:`field-lookups-intro`.
 
+.. fieldlookup:: exact
+
 exact
 ~~~~~
 
@@ -1214,6 +1224,8 @@ SQL equivalents::
     information about this, see the :ref:`collation section <mysql-collation>`
     in the :ref:`databases <ref-databases>` documentation.
 
+.. fieldlookup:: iexact
+
 iexact
 ~~~~~~
 
@@ -1237,6 +1249,8 @@ BLoG'``, etc.
     comparisons. SQLite does not do case-insensitive matching for Unicode
     strings.
 
+.. fieldlookup:: contains
+
 contains
 ~~~~~~~~
 
@@ -1256,6 +1270,8 @@ Note this will match the headline ``'Today Lennon honored'`` but not
 SQLite doesn't support case-sensitive ``LIKE`` statements; ``contains`` acts
 like ``icontains`` for SQLite.
 
+.. fieldlookup:: icontains
+
 icontains
 ~~~~~~~~~
 
@@ -1274,6 +1290,8 @@ SQL equivalent::
     When using the SQLite backend and Unicode (non-ASCII) strings, bear in
     mind the :ref:`database note <sqlite-string-matching>` about string
     comparisons.
+
+.. fieldlookup:: in
 
 in
 ~~
@@ -1350,6 +1368,8 @@ extract two field values, where only one is expected::
     the first query. Without it, a nested query would be executed, because
     :ref:`querysets-are-lazy`.
 
+.. fieldlookup:: gt
+
 gt
 ~~
 
@@ -1363,20 +1383,28 @@ SQL equivalent::
 
     SELECT ... WHERE id > 4;
 
+.. fieldlookup:: gte 
+
 gte
 ~~~
 
 Greater than or equal to.
+
+.. fieldlookup:: lt
 
 lt
 ~~
 
 Less than.
 
+.. fieldlookup:: lte
+
 lte
 ~~~
 
 Less than or equal to.
+
+.. fieldlookup:: startswith
 
 startswith
 ~~~~~~~~~~
@@ -1393,6 +1421,8 @@ SQL equivalent::
 
 SQLite doesn't support case-sensitive ``LIKE`` statements; ``startswith`` acts
 like ``istartswith`` for SQLite.
+
+.. fieldlookup:: istartswith
 
 istartswith
 ~~~~~~~~~~~
@@ -1413,6 +1443,8 @@ SQL equivalent::
     mind the :ref:`database note <sqlite-string-matching>` about string
     comparisons.
 
+.. fieldlookup:: endswith
+
 endswith
 ~~~~~~~~
 
@@ -1428,6 +1460,8 @@ SQL equivalent::
 
 SQLite doesn't support case-sensitive ``LIKE`` statements; ``endswith`` acts
 like ``iendswith`` for SQLite.
+
+.. fieldlookup:: iendswith
 
 iendswith
 ~~~~~~~~~
@@ -1448,6 +1482,8 @@ SQL equivalent::
     mind the :ref:`database note <sqlite-string-matching>` about string
     comparisons.
 
+.. fieldlookup:: range
+
 range
 ~~~~~
 
@@ -1466,6 +1502,8 @@ SQL equivalent::
 You can use ``range`` anywhere you can use ``BETWEEN`` in SQL -- for dates,
 numbers and even characters.
 
+.. fieldlookup:: year
+
 year
 ~~~~
 
@@ -1480,6 +1518,8 @@ SQL equivalent::
     SELECT ... WHERE EXTRACT('year' FROM pub_date) = '2005';
 
 (The exact SQL syntax varies for each database engine.)
+
+.. fieldlookup:: month
 
 month
 ~~~~~
@@ -1496,6 +1536,8 @@ SQL equivalent::
     SELECT ... WHERE EXTRACT('month' FROM pub_date) = '12';
 
 (The exact SQL syntax varies for each database engine.)
+
+.. fieldlookup:: day
 
 day
 ~~~
@@ -1514,6 +1556,8 @@ SQL equivalent::
 
 Note this will match any record with a pub_date on the third day of the month,
 such as January 3, July 3, etc.
+
+.. fieldlookup:: week_day
 
 week_day
 ~~~~~~~~
@@ -1536,6 +1580,8 @@ Note this will match any record with a pub_date that falls on a Monday (day 2
 of the week), regardless of the month or year in which it occurs. Week days
 are indexed with day 1 being Sunday and day 7 being Saturday.
 
+.. fieldlookup:: isnull
+
 isnull
 ~~~~~~
 
@@ -1549,6 +1595,8 @@ Example::
 SQL equivalent::
 
     SELECT ... WHERE pub_date IS NULL;
+
+.. fieldlookup:: search
 
 search
 ~~~~~~
@@ -1568,6 +1616,8 @@ Note this is only available in MySQL and requires direct manipulation of the
 database to add the full-text index. By default Django uses BOOLEAN MODE for
 full text searches. `Please check MySQL documentation for additional details. <http://dev.mysql.com/doc/refman/5.1/en/fulltext-boolean.html>`_
 
+
+.. fieldlookup:: regex
 
 regex
 ~~~~~
@@ -1597,6 +1647,8 @@ SQL equivalents::
 
 Using raw strings (e.g., ``r'foo'`` instead of ``'foo'``) for passing in the
 regular expression syntax is recommended.
+
+.. fieldlookup:: iregex
 
 iregex
 ~~~~~~

@@ -440,6 +440,11 @@ how ``x in y`` will be interpreted::
       instance that belongs to the QuerySet.
     {% endif %}
 
+``not in`` operator
+~~~~~~~~~~~~~~~~~~~~
+
+Not contained within.  This is the negation of the ``in`` operator.
+
 
 The comparison operators cannot be 'chained' like in Python or in mathematical
 notation. For example, instead of using::
@@ -891,12 +896,18 @@ Returns an absolute URL (i.e., a URL without the domain name) matching a given
 view function and optional parameters. This is a way to output links without
 violating the DRY principle by having to hard-code URLs in your templates::
 
-    {% url path.to.some_view arg1,arg2,name1=value1 %}
+    {% url path.to.some_view v1,v2 %}
 
 The first argument is a path to a view function in the format
 ``package.package.module.function``. Additional arguments are optional and
-should be comma-separated values that will be used as positional and keyword
-arguments in the URL. All arguments required by the URLconf should be present.
+should be comma-separated values that will be used as arguments in the URL.
+The example above shows passing positional arguments. Alternatively you may
+use keyword syntax::
+
+    {% url path.to.some_view arg1=v1,arg2=v2 %}
+
+Do not mix both positional and keyword syntax in a single call. All arguments
+required by the URLconf should be present.
 
 For example, suppose you have a view, ``app_views.client``, whose URLconf
 takes a client ID (here, ``client()`` is a method inside the views file
@@ -1010,6 +1021,27 @@ For example::
 
 If ``value`` is ``4``, then the output will be ``6``.
 
+.. versionchanged:: 1.2
+   The following behavior didn't exist in previous Django versions.
+
+This filter will first try to coerce both values to integers. If this fails,
+it'll attempt to add the values together anyway. This will work on some data
+types (strings, list, etc.) and fail on others. If it fails, the result will
+be an empty string.
+
+For example, if we have::
+
+    {{ first|add:second }}
+
+and ``first`` is ``[1, 2, 3]`` and ``second`` is ``[4, 5, 6]``, then the
+output will be ``[1, 2, 3, 4, 5, 6]``.
+
+.. warning::
+
+    Keep in mind that strings that can both be coerced to integers will be,
+    and thus will be will be *summed*, not concatenated, as in the first
+    example above.
+
 .. templatefilter:: addslashes
 
 addslashes
@@ -1082,12 +1114,25 @@ If ``value`` is a ``datetime`` object (e.g., the result of
 ``datetime.datetime.now()``), the output will be the string
 ``'Wed 09 Jan 2008'``.
 
+Another example:
+
+Assuming that :setting:`USE_L10N` is ``True`` and :setting:`LANGUAGE_CODE` is,
+for example, ``"es"``, then for::
+
+    {{ value|date:"SHORT_DATE_FORMAT" }}
+
+the output will be the string ``"09/01/2008"`` (The ``"SHORT_DATE_FORMAT"``
+format specifier for the ``es`` locale as shipped with Django is ``"d/m/Y"``).
+
 When used without a format string::
 
     {{ value|date }}
 
 ...the formatting string defined in the :setting:`DATE_FORMAT` setting will be
 used, without applying any localization.
+
+.. versionchanged:: 1.2
+    Predefined formats can now be influenced by the current locale.
 
 .. templatefilter:: default
 
@@ -1217,7 +1262,7 @@ For example::
     {{ value|escapejs }}
 
 If ``value`` is ``"testing\r\njavascript \'string" <b>escaping</b>"``,
-the output will be ``"testing\\x0D\\x0Ajavascript \\x27string\\x22 \\x3Cb\\x3Eescaping\\x3C/b\\x3E"``.
+the output will be ``"testing\\u000D\\u000Ajavascript \\u0027string\\u0022 \\u003Cb\\u003Eescaping\\u003C/b\\u003E"``.
 
 .. templatefilter:: filesizeformat
 
@@ -1709,12 +1754,25 @@ For example::
 If ``value`` is equivalent to ``datetime.datetime.now()``, the output will be
 the string ``"01:23"``.
 
+Another example:
+
+Assuming that :setting:`USE_L10N` is ``True`` and :setting:`LANGUAGE_CODE` is,
+for example, ``"de"``, then for::
+
+    {{ value|time:"TIME_FORMAT" }}
+
+the output will be the string ``"01:23:00"`` (The ``"TIME_FORMAT"`` format
+specifier for the ``de`` locale as shipped with Django is ``"H:i:s"``).
+
 When used without a format string::
 
     {{ value|time }}
 
 ...the formatting string defined in the :setting:`TIME_FORMAT` setting will be
-used, without aplying any localization.
+used, without applying any localization.
+
+.. versionchanged:: 1.2
+    Predefined formats can now be influenced by the current locale.
 
 .. templatefilter:: timesince
 

@@ -146,7 +146,7 @@ In order to support multiple database configurations, Django 1.2 has
 added a ``_state`` attribute to object instances. This attribute will
 appear in ``__dict__`` for a model instance. If your code relies on
 iterating over __dict__ to obtain a list of fields, you must now
-filter the ``_state`` attribute of out ``__dict__``.
+filter the ``_state`` attribute out of ``__dict__``.
 
 ``get_db_prep_*()`` methods on ``Field``
 ----------------------------------------
@@ -251,10 +251,91 @@ incompatibilities, especially if you are storing comma or semi-colon in
 cookies and have javascript code that parses and manipulates cookie values
 client-side.
 
+``user_passes_test``, ``login_required`` and ``permission_required``
+--------------------------------------------------------------------
+
+``django.contrib.auth.decorators`` provides the decorators ``login_required``,
+``permission_required`` and ``user_passes_test``. Previously it was possible to
+use these decorators both on functions (where the first argument is 'request')
+and on methods (where the first argument is 'self', and the second argument is
+'request'). However, we have found that the trick which enabled this is
+flawed. It only works in limited circumstances, and produces errors that are
+very difficult to debug when it does not work.
+
+For this reason, the 'auto adapt' behaviour has been removed, and if you are
+using these decorators on methods, you will need to manually apply
+:func:`django.utils.decorators.method_decorator` to convert the decorator to one
+that works with methods. You would change code from this::
+
+    class MyClass(object):
+
+        @login_required
+        def my_view(self, request):
+            pass
+
+to this::
+
+    from django.utils.decorators import method_decorator
+
+    class MyClass(object):
+
+        @method_decorator(login_required)
+        def my_view(self, request):
+            pass
+
+or::
+
+    from django.utils.decorators import method_decorator
+
+    login_required_m = method_decorator(login_required)
+
+    class MyClass(object):
+
+        @login_required_m
+        def my_view(self, request):
+            pass
+
+For those following trunk, this change also applies to other decorators
+introduced since 1.1, including ``csrf_protect``, ``cache_control`` and anything
+created using ``decorator_from_middleware``.
+
+``ModelForm.is_valid()`` and ``ModelForm.errors``
+-------------------------------------------------
+
+Much of the validation work for ModelForms has been moved down to the model
+level. As a result, the first time you call ``ModelForm.is_valid()``, access
+``ModelForm.errors`` or otherwise trigger form validation, your model will be
+cleaned in-place. This conversion used to happen when the model was saved. If
+you need an unmodified instance of your model, you should pass a copy to the
+``ModelForm`` constructor.
+
+
 .. _deprecated-features-1.2:
+
+``BooleanField`` on MySQL
+--------------------------
+
+In previous versions of Django ``BoleanFields`` under MySQL would return their
+values as either ``1`` or ``0``, instead of ``True`` or ``False``.  For most
+people this shouldn't have been a problem because ``bool`` is a subclass of
+``int``, however in Django 1.2 MySQL correctly returns a real ``bool``.  The
+only time this should ever be an issue is if you were expecting printing the
+``repr`` of a ``BooleanField`` to print ``1`` or ``0``.
 
 Features deprecated in 1.2
 ==========================
+
+``postgresql`` database backend
+-------------------------------
+
+The ``psycopg1`` library has not been updated since October 2005. As a
+result, the ``postgresql`` database backend, which depends on this
+library, has been deprecated.
+
+If you are currently using the ``postgresql`` backend, you should
+migrate to using the ``postgresql_psycopg2`` backend. To update your
+code, install the ``psycopg2`` library and change the
+``DATABASE_ENGINE`` setting to read ``postgresql_psycopg2``.
 
 CSRF response-rewriting middleware
 ----------------------------------
@@ -427,9 +508,14 @@ Using the new Feed class, these feeds can be deployed directly as views::
         # ...
     )
 
-If you currently use the ``feed()`` view, the ``LatestEntries`` class
-would not need to be modified apart from subclassing the new
-:class:`~django.contrib.syndication.views.Feed` class.
+If you currently use the ``feed()`` view, the ``LatestEntries`` class would
+often not need to be modified apart from subclassing the new
+:class:`~django.contrib.syndication.views.Feed` class. The exception is if
+Django was automatically working out the name of the template to use to render
+the feed's description and title elements (if you were not specifying the
+``title_template`` and ``description_template`` attributes). You should ensure
+that you always specify ``title_template`` and ``description_template``
+attributes, or provide ``item_title()`` and ``item_description()`` methods.
 
 However, ``LatestEntriesByCategory`` uses the ``get_object()`` method
 with the ``bits`` argument to specify a specific category to show. In
@@ -466,6 +552,19 @@ For more information, see the full :ref:`syndication framework
 documentation <ref-contrib-syndication>`.
 
 .. _RSS best practices: http://www.rssboard.org/rss-profile
+
+Technical message IDs
+---------------------
+
+Up to version 1.1 Django used :ref:`technical message IDs<technical-messages>`
+to provide localizers the possibility to translate date and time formats. They
+were translatable :term:`translation strings <translation string>` that could
+be recognized because they were all upper case (for example
+``DATETIME_FORMAT``, ``DATE_FORMAT``, ``TIME_FORMAT``). They have been
+deprecated in favor of the new :ref:`Format localization
+<format-localization>` infrastructure that allows localizers to specify that
+information in a ``formats.py`` file in the corresponding
+``django/conf/locale/<locale name>/`` directory.
 
 What's new in Django 1.2
 ========================
@@ -528,23 +627,23 @@ added support for comparison operators. No longer will you have to type:
 .. code-block:: html+django
 
     {% ifnotequal a b %}
-    ...
+     ...
     {% endifnotequal %}
 
-You can now do this::
+You can now do this:
 
 .. code-block:: html+django
 
     {% if a != b %}
-    ...
+     ...
     {% endif %}
 
 There's really no reason to use ``{% ifequal %}`` or ``{% ifnotequal %}``
 anymore, unless you're the nostalgic type.
 
-The operators supported are ``==``, ``!=``, ``<``, ``>``, ``<=``, ``>=`` and
-``in``, all of which work like the Python operators, in addition to ``and``,
-``or`` and ``not``, which were already supported.
+The operators supported are ``==``, ``!=``, ``<``, ``>``, ``<=``, ``>=``,
+``in`` and ``not in``, all of which work like the Python operators, in addition
+to ``and``, ``or`` and ``not``, which were already supported.
 
 Also, filters may now be used in the ``if`` expression. For example:
 
@@ -658,3 +757,10 @@ views in your :ref:`URLconf <topics-http-urls>`. This means that you can
 maintain complete control over the URL structure of your feeds. Like any other view, feeds views are passed a ``request`` object, so you can
 do anything you would normally do with a view, like user based access control,
 or making a feed a named URL.
+
+Relaxed requirements for usernames
+----------------------------------
+
+The built-in :class:`~django.contrib.auth.models.User` model's
+:attr:`~django.contrib.auth.models.User.username` field now allows a wider range
+of characters, including ``@``, ``+``, ``.`` and ``-`` characters.

@@ -178,9 +178,9 @@ continue to work for now, but they are deprecated and will be removed in Django
 django.contrib.csrf.middleware.CsrfMiddleware           django.middleware.csrf.CsrfMiddleware
 django.contrib.csrf.middleware.CsrfViewMiddleware       django.middleware.csrf.CsrfViewMiddleware
 django.contrib.csrf.middleware.CsrfResponseMiddleware   django.middleware.csrf.CsrfResponseMiddleware
-django.contrib.csrf.middleware.csrf_exempt              django.views.decorators.csrf_exempt
-django.contrib.csrf.middleware.csrf_view_exempt         django.views.decorators.csrf_view_exempt
-django.contrib.csrf.middleware.csrf_response_exempt     django.views.decorators.csrf_response_exempt
+django.contrib.csrf.middleware.csrf_exempt              django.views.decorators.csrf.csrf_exempt
+django.contrib.csrf.middleware.csrf_view_exempt         django.views.decorators.csrf.csrf_view_exempt
+django.contrib.csrf.middleware.csrf_response_exempt     django.views.decorators.csrf.csrf_response_exempt
 ======================================================  ==============================================
 
 You should update any imports, and also the paths in your
@@ -244,6 +244,8 @@ Exceptions
 ----------
 
 .. versionadded:: 1.1
+.. versionchanged:: 1.2
+    Import paths for the decorators below were changed.
 
 To manually exclude a view function from being handled by either of the two CSRF
 middleware, you can use the ``csrf_exempt`` decorator, found in the

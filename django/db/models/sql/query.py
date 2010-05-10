@@ -408,7 +408,10 @@ class BaseQuery(object):
 
         result = ['SELECT']
         if self.distinct:
-            result.append('DISTINCT')
+            if isinstance(self.distinct, list):
+                result.append('DISTINCT ON (%s)' % ', '.join(self.distinct))
+            else:
+                result.append('DISTINCT')
         result.append(', '.join(out_cols + self.ordering_aliases))
 
         result.append('FROM')
@@ -488,6 +491,9 @@ class BaseQuery(object):
                 "Cannot combine queries on two different base models."
         assert self.can_filter(), \
                 "Cannot combine queries once a slice has been taken."
+        # TODO: if distinct lists do not match, this will fail
+        # whether this should be left as is or treated specially (e.g. by
+        # merging two lists into one) remains to be decided
         assert self.distinct == rhs.distinct, \
             "Cannot combine a unique query with a non-unique query."
 
@@ -912,6 +918,10 @@ class BaseQuery(object):
             ordering = self.order_by or self.model._meta.ordering
         qn = self.quote_name_unless_alias
         qn2 = self.connection.ops.quote_name
+        # TODO: if self.distinct is a list, it needs to contain all the
+        # columns used in ordering. Automating this is rather tedious, so
+        # currently users should be simply warned that their queries will fail
+        # unless they provide the order_by paramters in distinct as well.
         distinct = self.distinct
         select_aliases = self._select_aliases
         result = []
@@ -2120,6 +2130,8 @@ class BaseQuery(object):
                         "Cannot add count col with multiple cols in 'select': %r" % self.select
                 count = self.aggregates_module.Count(self.select[0])
         else:
+            # FIXME: the implications of when self.distinct is a list need to
+            # be thought through
             opts = self.model._meta
             if not self.select:
                 count = self.aggregates_module.Count((self.join((None, opts.db_table, None, None)), opts.pk.column),

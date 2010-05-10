@@ -591,12 +591,21 @@ class QuerySet(object):
         obj.query.add_ordering(*field_names)
         return obj
 
-    def distinct(self, true_or_false=True):
+    def distinct(self, true_or_false=True, on_fields=None):
         """
         Returns a new QuerySet instance that will select only distinct results.
         """
         obj = self._clone()
-        obj.query.distinct = true_or_false
+        if on_fields:
+            if isinstance(on_fields, basestring):
+                on_fields = (on_fields,)
+            # Quote the field names
+            quote = connection.ops.quote_name
+            table_name = quote(self.model._meta.db_table)
+            obj.query.distinct = [table_name + "." + quote(field)
+                    for field in on_fields]
+        else:
+            obj.query.distinct = true_or_false
         return obj
 
     def extra(self, select=None, where=None, params=None, tables=None,

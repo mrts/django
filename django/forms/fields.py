@@ -7,7 +7,6 @@ import os
 import re
 import time
 import urlparse
-from decimal import Decimal, DecimalException
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -17,6 +16,16 @@ import django.core.exceptions
 import django.utils.copycompat as copy
 from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import smart_unicode, smart_str
+
+# Python 2.3 fallbacks
+try:
+    from decimal import Decimal, DecimalException
+except ImportError:
+    from django.utils._decimal import Decimal, DecimalException
+try:
+    set
+except NameError:
+    from sets import Set as set
 
 from util import ErrorList, ValidationError
 from widgets import TextInput, PasswordInput, HiddenInput, MultipleHiddenInput, FileInput, CheckboxInput, Select, NullBooleanSelect, SelectMultiple, DateInput, DateTimeInput, TimeInput, SplitDateTimeWidget, SplitHiddenDateTimeWidget
@@ -238,6 +247,12 @@ class DecimalField(Field):
         try:
             value = Decimal(value)
         except DecimalException:
+            raise ValidationError(self.error_messages['invalid'])
+
+        # Check for NaN, Inf and -Inf values. We can't compare directly for NaN,
+        # since it is never equal to itself. However, NaN is the only value that
+        # isn't equal to itself, so we can use this to identify NaN
+        if value != value or value == Decimal("Inf") or value == Decimal("-Inf"):
             raise ValidationError(self.error_messages['invalid'])
 
         sign, digittuple, exponent = value.as_tuple()
@@ -483,7 +498,12 @@ class ImageField(FileField):
             return None
         elif not data and initial:
             return initial
-        from PIL import Image
+
+        # Try to import PIL in either of the two ways it can end up installed.
+        try:
+            from PIL import Image
+        except ImportError:
+            import Image
 
         # We need to get a file object for PIL. We might have a path or we might
         # have to read the data into memory.
@@ -649,7 +669,7 @@ class ChoiceField(Field):
     def valid_value(self, value):
         "Check to see if the provided value is a valid choice"
         for k, v in self.choices:
-            if type(v) in (tuple, list):
+            if isinstance(v, (list, tuple)):
                 # This is an optgroup, so look inside the group for options
                 for k2, v2 in v:
                     if value == smart_unicode(k2):

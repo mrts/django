@@ -189,6 +189,10 @@ It also has these methods:
             * If ``value`` is ``None``, the session reverts to using the global
               session expiry policy.
 
+      Reading a session is not considered activity for expiration
+      purposes. Session expiration is computed from the last time the
+      session was *modified*.
+
     * ``get_expiry_age()``
 
       .. versionadded:: 1.0
@@ -410,6 +414,9 @@ SESSION_ENGINE
 
 .. versionadded:: 1.0
 
+.. versionchanged:: 1.1
+   The ``cached_db`` backend was added
+
 Default: ``django.contrib.sessions.backends.db``
 
 Controls where Django stores session data. Valid values are:
@@ -417,6 +424,7 @@ Controls where Django stores session data. Valid values are:
     * ``'django.contrib.sessions.backends.db'``
     * ``'django.contrib.sessions.backends.file'``
     * ``'django.contrib.sessions.backends.cache'``
+    * ``'django.contrib.sessions.backends.cached_db'``
 
 See `configuring the session engine`_ for more details.
 

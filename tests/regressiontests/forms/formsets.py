@@ -315,6 +315,26 @@ If we remove the deletion flag now we will have our validation back.
 >>> formset.is_valid()
 False
 
+Should be able to get deleted_forms from a valid formset even if a
+deleted form would have been invalid.
+
+>>> class Person(Form):
+...     name = CharField()
+
+>>> PeopleForm = formset_factory(
+...     form=Person,
+...     can_delete=True)
+
+>>> p = PeopleForm(
+...     {'form-0-name': u'', 'form-0-DELETE': u'on', # no name!
+...      'form-TOTAL_FORMS': 1, 'form-INITIAL_FORMS': 1,
+...      'form-MAX_NUM_FORMS': 1})
+
+>>> p.is_valid()
+True
+>>> len(p.deleted_forms)
+1
+
 # FormSets with ordering ######################################################
 
 We can also add ordering ability to a FormSet with an agrument to
@@ -471,6 +491,26 @@ True
 >>> [form.cleaned_data for form in formset.deleted_forms]
 [{'votes': 900, 'DELETE': True, 'ORDER': 2, 'choice': u'Fergie'}]
 
+Should be able to get ordered forms from a valid formset even if a
+deleted form would have been invalid.
+
+>>> class Person(Form):
+...     name = CharField()
+
+>>> PeopleForm = formset_factory(
+...     form=Person,
+...     can_delete=True,
+...     can_order=True)
+
+>>> p = PeopleForm(
+...     {'form-0-name': u'', 'form-0-DELETE': u'on', # no name!
+...      'form-TOTAL_FORMS': 1, 'form-INITIAL_FORMS': 1,
+...      'form-MAX_NUM_FORMS': 1})
+
+>>> p.is_valid()
+True
+>>> p.ordered_forms
+[]
 
 # FormSet clean hook ##########################################################
 
@@ -597,5 +637,21 @@ Make sure the management form has the correct prefix.
 >>> formset = FavoriteDrinksFormSet(initial={})
 >>> formset.management_form.prefix
 'form'
+
+# Regression test for #12878 #################################################
+
+>>> data = {
+...     'drinks-TOTAL_FORMS': '2', # the number of forms rendered
+...     'drinks-INITIAL_FORMS': '0', # the number of forms with initial data
+...     'drinks-MAX_NUM_FORMS': '0', # max number of forms
+...     'drinks-0-name': 'Gin and Tonic',
+...     'drinks-1-name': 'Gin and Tonic',
+... }
+
+>>> formset = FavoriteDrinksFormSet(data, prefix='drinks')
+>>> formset.is_valid()
+False
+>>> print formset.non_form_errors()
+<ul class="errorlist"><li>You may only specify a drink once.</li></ul>
 
 """

@@ -7,6 +7,8 @@ try:
 except NameError:
     from sets import Set as set     # Python 2.3 fallback
 
+from itertools import izip
+
 from django.db import connection, transaction, IntegrityError
 from django.db.models.aggregates import Aggregate
 from django.db.models.fields import DateField
@@ -386,12 +388,15 @@ class QuerySet(object):
         # Delete objects in chunks to prevent the list of related objects from
         # becoming too long.
         seen_objs = None
+        del_itr = iter(del_query)
         while 1:
-            # Collect all the objects to be deleted in this chunk, and all the
+            # Collect a chunk of objects to be deleted, and then all the
             # objects that are related to the objects that are to be deleted.
+            # The chunking *isn't* done by slicing the del_query because we
+            # need to maintain the query cache on del_query (see #12328)
             seen_objs = CollectedObjects(seen_objs)
-            for object in del_query[:CHUNK_SIZE]:
-                object._collect_sub_objects(seen_objs)
+            for i, obj in izip(xrange(CHUNK_SIZE), del_itr):
+                obj._collect_sub_objects(seen_objs)
 
             if not seen_objs:
                 break
@@ -871,6 +876,8 @@ class ValuesListQuerySet(ValuesQuerySet):
             # full list of fields, including extras and aggregates.
             if self._fields:
                 fields = self._fields
+                fields = list(self._fields) + filter(lambda f: f not in self._fields,
+                                                     aggregate_names)
             else:
                 fields = names
 
@@ -941,6 +948,12 @@ class EmptyQuerySet(QuerySet):
         # (it raises StopIteration immediately).
         yield iter([]).next()
 
+    def update(self, **kwargs):
+        """
+        Don't update anything.
+        """
+        return 0
+
     # EmptyQuerySet is always an empty result in where-clauses (and similar
     # situations).
     value_annotation = False
@@ -957,7 +970,17 @@ def get_cached_row(klass, row, index_start, max_depth=0, cur_depth=0,
         return None
 
     restricted = requested is not None
-    load_fields = only_load and only_load.get(klass) or None
+    if only_load:
+        load_fields = only_load.get(klass)
+        # When we create the object, we will also be creating populating
+        # all the parent classes, so traverse the parent classes looking
+        # for fields that must be included on load.
+        for parent in klass._meta.get_parent_list():
+            fields = only_load.get(parent)
+            if fields:
+                load_fields.update(fields)
+    else:
+        load_fields = None
     if load_fields:
         # Handle deferred fields.
         skip = set()
@@ -994,7 +1017,7 @@ def get_cached_row(klass, row, index_start, max_depth=0, cur_depth=0,
         else:
             next = None
         cached_row = get_cached_row(f.rel.to, row, index_end, max_depth,
-                cur_depth+1, next)
+                cur_depth+1, next, only_load=only_load)
         if cached_row:
             rel_obj, index_end = cached_row
             if obj is not None:

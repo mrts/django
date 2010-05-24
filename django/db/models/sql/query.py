@@ -18,7 +18,7 @@ from django.db.models.fields import FieldDoesNotExist
 from django.db.models.query_utils import select_related_descend
 from django.db.models.sql import aggregates as base_aggregates_module
 from django.db.models.sql.expressions import SQLEvaluator
-from django.db.models.sql.where import WhereNode, Constraint, EverythingNode, AND, OR
+from django.db.models.sql.where import WhereNode, Constraint, EverythingNode, ExtraWhere, AND, OR
 from django.core.exceptions import FieldError
 from datastructures import EmptyResultSet, Empty, MultiJoin
 from constants import *
@@ -92,8 +92,6 @@ class BaseQuery(object):
         self._extra_select_cache = None
 
         self.extra_tables = ()
-        self.extra_where = ()
-        self.extra_params = ()
         self.extra_order_by = ()
 
         # A tuple that is a set of model field names and either True, if these
@@ -113,7 +111,7 @@ class BaseQuery(object):
         return sql % params
 
     def __deepcopy__(self, memo):
-        result= self.clone()
+        result = self.clone(memo=memo)
         memo[id(self)] = result
         return result
 
@@ -175,7 +173,7 @@ class BaseQuery(object):
         self.quote_cache[name] = r
         return r
 
-    def clone(self, klass=None, **kwargs):
+    def clone(self, klass=None, memo=None, **kwargs):
         """
         Creates a copy of the current instance. The 'kwargs' parameter can be
         used by clients to update attributes after copying has taken place.
@@ -200,27 +198,29 @@ class BaseQuery(object):
         obj.dupe_avoidance = self.dupe_avoidance.copy()
         obj.select = self.select[:]
         obj.tables = self.tables[:]
-        obj.where = deepcopy(self.where)
+        obj.where = deepcopy(self.where, memo=memo)
         obj.where_class = self.where_class
         if self.group_by is None:
             obj.group_by = None
         else:
             obj.group_by = self.group_by[:]
-        obj.having = deepcopy(self.having)
+        obj.having = deepcopy(self.having, memo=memo)
         obj.order_by = self.order_by[:]
         obj.low_mark, obj.high_mark = self.low_mark, self.high_mark
         obj.distinct = self.distinct
         obj.select_related = self.select_related
         obj.related_select_cols = []
-        obj.aggregates = deepcopy(self.aggregates)
+        obj.aggregates = deepcopy(self.aggregates, memo=memo)
         if self.aggregate_select_mask is None:
             obj.aggregate_select_mask = None
         else:
             obj.aggregate_select_mask = self.aggregate_select_mask.copy()
-        if self._aggregate_select_cache is None:
-            obj._aggregate_select_cache = None
-        else:
-            obj._aggregate_select_cache = self._aggregate_select_cache.copy()
+        # _aggregate_select_cache cannot be copied, as doing so breaks the
+        # (necessary) state in which both aggregates and
+        # _aggregate_select_cache point to the same underlying objects.
+        # It will get re-populated in the cloned queryset the next time it's
+        # used.
+        obj._aggregate_select_cache = None
         obj.max_depth = self.max_depth
         obj.extra = self.extra.copy()
         if self.extra_select_mask is None:
@@ -232,10 +232,8 @@ class BaseQuery(object):
         else:
             obj._extra_select_cache = self._extra_select_cache.copy()
         obj.extra_tables = self.extra_tables
-        obj.extra_where = self.extra_where
-        obj.extra_params = self.extra_params
         obj.extra_order_by = self.extra_order_by
-        obj.deferred_loading = deepcopy(self.deferred_loading)
+        obj.deferred_loading = deepcopy(self.deferred_loading, memo=memo)
         if self.filter_is_sticky and self.used_aliases:
             obj.used_aliases = self.used_aliases.copy()
         else:
@@ -418,12 +416,6 @@ class BaseQuery(object):
         if where:
             result.append('WHERE %s' % where)
             params.extend(w_params)
-        if self.extra_where:
-            if not where:
-                result.append('WHERE')
-            else:
-                result.append('AND')
-            result.append(' AND '.join(self.extra_where))
 
         grouping, gb_params = self.get_grouping()
         if grouping:
@@ -458,20 +450,20 @@ class BaseQuery(object):
                         result.append('LIMIT %d' % val)
                 result.append('OFFSET %d' % self.low_mark)
 
-        params.extend(self.extra_params)
         return ' '.join(result), tuple(params)
 
     def as_nested_sql(self):
         """
         Perform the same functionality as the as_sql() method, returning an
         SQL string and parameters. However, the alias prefixes are bumped
-        beforehand (in a copy -- the current query isn't changed) and any
-        ordering is removed.
-
+        beforehand (in a copy -- the current query isn't changed), and any
+        ordering is removed if the query is unsliced.
         Used when nesting this query inside another.
         """
         obj = self.clone()
-        obj.clear_ordering(True)
+        if obj.low_mark == 0 and obj.high_mark is None:
+            # If there is no slicing in use, then we can safely drop all ordering
+            obj.clear_ordering(True)
         obj.bump_prefix()
         return obj.as_sql()
 
@@ -553,9 +545,6 @@ class BaseQuery(object):
             if self.extra and rhs.extra:
                 raise ValueError("When merging querysets using 'or', you "
                         "cannot have extra(select=...) on both sides.")
-            if self.extra_where and rhs.extra_where:
-                raise ValueError("When merging querysets using 'or', you "
-                        "cannot have extra(where=...) on both sides.")
         self.extra.update(rhs.extra)
         extra_select_mask = set()
         if self.extra_select_mask is not None:
@@ -565,8 +554,6 @@ class BaseQuery(object):
         if extra_select_mask:
             self.set_extra_mask(extra_select_mask)
         self.extra_tables += rhs.extra_tables
-        self.extra_where += rhs.extra_where
-        self.extra_params += rhs.extra_params
 
         # Ordering uses the 'rhs' ordering, unless it has none, in which case
         # the current ordering is used.
@@ -634,10 +621,10 @@ class BaseQuery(object):
             # models.
             workset = {}
             for model, values in seen.iteritems():
-                for field in model._meta.local_fields:
+                for field, m in model._meta.get_fields_with_model():
                     if field in values:
                         continue
-                    add_to_dict(workset, model, field)
+                    add_to_dict(workset, m or model, field)
             for model, values in must_include.iteritems():
                 # If we haven't included a model in workset, we don't add the
                 # corresponding must_include fields for that model, since an
@@ -889,7 +876,7 @@ class BaseQuery(object):
                 elif hasattr(col, 'as_sql'):
                     result.append(col.as_sql(qn))
                 else:
-                    result.append(str(col))
+                    result.append('(%s)' % str(col))
         return result, params
 
     def get_ordering(self):
@@ -1377,10 +1364,7 @@ class BaseQuery(object):
             avoid = avoid_set.copy()
             dupe_set = orig_dupe_set.copy()
             table = f.rel.to._meta.db_table
-            if nullable or f.null:
-                promote = True
-            else:
-                promote = False
+            promote = nullable or f.null
             if model:
                 int_opts = opts
                 alias = root_alias
@@ -1396,8 +1380,8 @@ class BaseQuery(object):
                     lhs_col = int_opts.parents[int_model].column
                     dedupe = lhs_col in opts.duplicate_targets
                     if dedupe:
-                        avoid.update(self.dupe_avoidance.get(id(opts), lhs_col),
-                                ())
+                        avoid.update(self.dupe_avoidance.get((id(opts), lhs_col),
+                                ()))
                         dupe_set.add((opts, lhs_col))
                     int_opts = int_model._meta
                     alias = self.join((alias, int_opts.db_table, lhs_col,
@@ -1431,10 +1415,7 @@ class BaseQuery(object):
                 next = requested.get(f.name, {})
             else:
                 next = False
-            if f.null is not None:
-                new_nullable = f.null
-            else:
-                new_nullable = None
+            new_nullable = f.null or promote
             for dupe_opts, dupe_col in dupe_set:
                 self.update_dupe_avoidance(dupe_opts, dupe_col, alias)
             self.fill_related_selections(f.rel.to._meta, alias, cur_depth + 1,
@@ -1665,13 +1646,13 @@ class BaseQuery(object):
             for child in q_object.children:
                 if connector == OR:
                     refcounts_before = self.alias_refcount.copy()
+                self.where.start_subtree(connector)
                 if isinstance(child, Node):
-                    self.where.start_subtree(connector)
                     self.add_q(child, used_aliases)
-                    self.where.end_subtree()
                 else:
                     self.add_filter(child, connector, q_object.negated,
                             can_reuse=used_aliases)
+                self.where.end_subtree()
                 if connector == OR:
                     # Aliases that were newly added or not used at all need to
                     # be promoted to outer joins if they are nullable relations.
@@ -2181,10 +2162,8 @@ class BaseQuery(object):
                 select_pairs[name] = (entry, entry_params)
             # This is order preserving, since self.extra_select is a SortedDict.
             self.extra.update(select_pairs)
-        if where:
-            self.extra_where += tuple(where)
-        if params:
-            self.extra_params += tuple(params)
+        if where or params:
+            self.where.add(ExtraWhere(where, params), AND)
         if tables:
             self.extra_tables += tuple(tables)
         if order_by:

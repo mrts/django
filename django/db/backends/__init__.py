@@ -102,6 +102,7 @@ class BaseDatabaseFeatures(object):
     # If True, don't use integer foreign keys referring to, e.g., positive
     # integer primary keys.
     related_fields_match_type = False
+    allow_sliced_subqueries = True
 
 class BaseDatabaseOperations(object):
     """
@@ -208,7 +209,7 @@ class BaseDatabaseOperations(object):
         from django.utils.encoding import smart_unicode, force_unicode
 
         # Convert params to contain Unicode values.
-        to_unicode = lambda s: force_unicode(s, strings_only=True)
+        to_unicode = lambda s: force_unicode(s, strings_only=True, errors='replace')
         if isinstance(params, (list, tuple)):
             u_params = tuple([to_unicode(val) for val in params])
         else:

@@ -103,20 +103,7 @@ builtins = []
 invalid_var_format_string = None
 
 class TemplateSyntaxError(Exception):
-    def __str__(self):
-        try:
-            import cStringIO as StringIO
-        except ImportError:
-            import StringIO
-        output = StringIO.StringIO()
-        output.write(Exception.__str__(self))
-        # Check if we wrapped an exception and print that too.
-        if hasattr(self, 'exc_info'):
-            import traceback
-            output.write('\n\nOriginal ')
-            e = self.exc_info
-            traceback.print_exception(e[0], e[1], e[2], 500, output)
-        return output.getvalue()
+    pass
 
 class TemplateDoesNotExist(Exception):
     pass
@@ -411,6 +398,20 @@ class TokenParser(object):
         "A microparser that parses for a value: some string constant or variable name."
         subject = self.subject
         i = self.pointer
+
+        def next_space_index(subject, i):
+            "Increment pointer until a real space (i.e. a space not within quotes) is encountered"
+            while i < len(subject) and subject[i] not in (' ', '\t'):
+                if subject[i] in ('"', "'"):
+                    c = subject[i]
+                    i += 1
+                    while i < len(subject) and subject[i] != c:
+                        i += 1
+                    if i >= len(subject):
+                        raise TemplateSyntaxError("Searching for value. Unexpected end of string in column %d: %s" % (i, subject))
+                i += 1
+            return i
+
         if i >= len(subject):
             raise TemplateSyntaxError("Searching for value. Expected another value but found end of string: %s" % subject)
         if subject[i] in ('"', "'"):
@@ -421,6 +422,10 @@ class TokenParser(object):
             if i >= len(subject):
                 raise TemplateSyntaxError("Searching for value. Unexpected end of string in column %d: %s" % (i, subject))
             i += 1
+
+            # Continue parsing until next "real" space, so that filters are also included
+            i = next_space_index(subject, i)
+
             res = subject[p:i]
             while i < len(subject) and subject[i] in (' ', '\t'):
                 i += 1
@@ -429,15 +434,7 @@ class TokenParser(object):
             return res
         else:
             p = i
-            while i < len(subject) and subject[i] not in (' ', '\t'):
-                if subject[i] in ('"', "'"):
-                    c = subject[i]
-                    i += 1
-                    while i < len(subject) and subject[i] != c:
-                        i += 1
-                    if i >= len(subject):
-                        raise TemplateSyntaxError("Searching for value. Unexpected end of string in column %d: %s" % (i, subject))
-                i += 1
+            i = next_space_index(subject, i)
             s = subject[p:i]
             while i < len(subject) and subject[i] in (' ', '\t'):
                 i += 1
@@ -518,8 +515,6 @@ class FilterExpression(object):
                         var_obj = None
                 elif var is None:
                     raise TemplateSyntaxError("Could not find variable at start of %s." % token)
-                elif var.find(VARIABLE_ATTRIBUTE_SEPARATOR + '_') > -1 or var[0] == '_':
-                    raise TemplateSyntaxError("Variables and attributes may not begin with underscores: '%s'" % var)
                 else:
                     var_obj = Variable(var)
             else:
@@ -678,6 +673,8 @@ class Variable(object):
             except ValueError:
                 # Otherwise we'll set self.lookups so that resolve() knows we're
                 # dealing with a bonafide variable
+                if var.find(VARIABLE_ATTRIBUTE_SEPARATOR + '_') > -1 or var[0] == '_':
+                    raise TemplateSyntaxError("Variables and attributes may not begin with underscores: '%s'" % var)
                 self.lookups = tuple(var.split(VARIABLE_ATTRIBUTE_SEPARATOR))
 
     def resolve(self, context):
@@ -743,6 +740,11 @@ class Variable(object):
                         current = settings.TEMPLATE_STRING_IF_INVALID
                     else:
                         raise
+            except Exception, e:
+                if getattr(e, 'silent_variable_failure', False):
+                    current = settings.TEMPLATE_STRING_IF_INVALID
+                else:
+                    raise
 
         return current
 
@@ -750,6 +752,7 @@ class Node(object):
     # Set this to True for nodes that must be first in the template (although
     # they can be preceded by text nodes.
     must_be_first = False
+    child_nodelists = ('nodelist',)
 
     def render(self, context):
         "Return the node rendered as a string"
@@ -763,8 +766,10 @@ class Node(object):
         nodes = []
         if isinstance(self, nodetype):
             nodes.append(self)
-        if hasattr(self, 'nodelist'):
-            nodes.extend(self.nodelist.get_nodes_by_type(nodetype))
+        for attr in self.child_nodelists:
+            nodelist = getattr(self, attr, None)
+            if nodelist:
+                nodes.extend(nodelist.get_nodes_by_type(nodetype))
         return nodes
 
 class NodeList(list):
@@ -801,7 +806,7 @@ class TextNode(Node):
 
     def render(self, context):
         return self.s
-    
+
 def _render_value_in_context(value, context):
     """
     Converts any value to a string to become part of a rendered template. This

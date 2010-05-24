@@ -278,15 +278,39 @@ class BaseCacheTests(object):
             self.cache.set(key, value)
             self.assertEqual(self.cache.get(key), value)
 
+    def test_binary_string(self):
+        # Binary strings should be cachable
+        from zlib import compress, decompress
+        value = 'value_to_be_compressed'
+        compressed_value = compress(value)
+        self.cache.set('binary1', compressed_value)
+        compressed_result = self.cache.get('binary1')
+        self.assertEqual(compressed_value, compressed_result)
+        self.assertEqual(value, decompress(compressed_result))
+
+    def test_long_timeout(self):
+        '''
+        Using a timeout greater than 30 days makes memcached think
+        it is an absolute expiration timestamp instead of a relative
+        offset. Test that we honour this convention. Refs #12399.
+        '''
+        self.cache.set('key1', 'eggs', 60*60*24*30 + 1) #30 days + 1 second
+        self.assertEqual(self.cache.get('key1'), 'eggs')
+
+        self.cache.add('key2', 'ham', 60*60*24*30 + 1)
+        self.assertEqual(self.cache.get('key2'), 'ham')
+
 class DBCacheTests(unittest.TestCase, BaseCacheTests):
     def setUp(self):
-        management.call_command('createcachetable', 'test_cache_table', verbosity=0, interactive=False)
-        self.cache = get_cache('db://test_cache_table')
+        # Spaces are used in the table name to ensure quoting/escaping is working
+        self._table_name = 'test cache table'
+        management.call_command('createcachetable', self._table_name, verbosity=0, interactive=False)
+        self.cache = get_cache('db://%s' % self._table_name)
 
     def tearDown(self):
         from django.db import connection
         cursor = connection.cursor()
-        cursor.execute('DROP TABLE test_cache_table');
+        cursor.execute('DROP TABLE %s' % connection.ops.quote_name(self._table_name))
 
 class LocMemCacheTests(unittest.TestCase, BaseCacheTests):
     def setUp(self):

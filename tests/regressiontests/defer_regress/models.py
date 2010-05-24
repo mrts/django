@@ -6,6 +6,11 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection, models
 
+try:
+    sorted
+except NameError:
+    from django.utils.itercompat import sorted  # For Python 2.3
+
 class Item(models.Model):
     name = models.CharField(max_length=15)
     text = models.TextField(default="xyzzy")
@@ -137,9 +142,8 @@ False
 >>> sorted(get_models(models.get_app('defer_regress')), key=lambda obj: obj.__class__.__name__)
 [<class 'regressiontests.defer_regress.models.Item'>, <class 'regressiontests.defer_regress.models.RelatedItem'>, <class 'regressiontests.defer_regress.models.Child'>, <class 'regressiontests.defer_regress.models.Leaf'>]
 
->>> sorted(get_models(models.get_app('defer_regress'), include_deferred=True), key=lambda obj: obj.__class__.__name__)
-[<class 'regressiontests.defer_regress.models.Item'>, <class 'regressiontests.defer_regress.models.RelatedItem'>, <class 'regressiontests.defer_regress.models.Child'>, <class 'regressiontests.defer_regress.models.Leaf'>, <class 'regressiontests.defer_regress.models.Item_Deferred_text_value'>, <class 'regressiontests.defer_regress.models.Item_Deferred_name_other_value_text'>, <class 'regressiontests.defer_regress.models.RelatedItem_Deferred_item_id'>, <class 'regressiontests.defer_regress.models.Leaf_Deferred_second_child_value'>, <class 'regressiontests.defer_regress.models.Leaf_Deferred_name_value'>, <class 'regressiontests.defer_regress.models.Item_Deferred_name'>, <class 'regressiontests.defer_regress.models.Item_Deferred_other_value_text_value'>, <class 'regressiontests.defer_regress.models.Leaf_Deferred_value'>]
-
+>>> sorted(get_models(models.get_app('defer_regress'), include_deferred=True), key=lambda obj: obj._meta.object_name)
+[<class 'regressiontests.defer_regress.models.Child'>, <class 'regressiontests.defer_regress.models.Child_Deferred_value'>, <class 'regressiontests.defer_regress.models.Item'>, <class 'regressiontests.defer_regress.models.Item_Deferred_name'>, <class 'regressiontests.defer_regress.models.Item_Deferred_name_other_value_text'>, <class 'regressiontests.defer_regress.models.Item_Deferred_name_other_value_value'>, <class 'regressiontests.defer_regress.models.Item_Deferred_other_value_text_value'>, <class 'regressiontests.defer_regress.models.Item_Deferred_text_value'>, <class 'regressiontests.defer_regress.models.Leaf'>, <class 'regressiontests.defer_regress.models.Leaf_Deferred_child_id_second_child_id_value'>, <class 'regressiontests.defer_regress.models.Leaf_Deferred_name_value'>, <class 'regressiontests.defer_regress.models.Leaf_Deferred_second_child_value'>, <class 'regressiontests.defer_regress.models.Leaf_Deferred_value'>, <class 'regressiontests.defer_regress.models.RelatedItem'>, <class 'regressiontests.defer_regress.models.RelatedItem_Deferred_'>, <class 'regressiontests.defer_regress.models.RelatedItem_Deferred_item_id'>]
 """
 }
 

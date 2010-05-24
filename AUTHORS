@@ -26,6 +26,7 @@ And here is an inevitably incomplete list of MUCH-APPRECIATED CONTRIBUTORS --
 people who have submitted patches, reported bugs, added translations, helped
 answer newbie questions, and generally made Django that much better:
 
+    Gisle Aas <gisle@aas.no>
     ajs <adi@sieker.info>
     alang@bright-green.com
     Marty Alchin <gulopine@gamemusic.org>
@@ -67,7 +68,7 @@ answer newbie questions, and generally made Django that much better:
     James Bennett
     Julian Bez
     Arvis Bickovskis <viestards.lists@gmail.com>
-    Natalia Bidart
+    Natalia Bidart <nataliabidart@gmail.com>
     Paul Bissex <http://e-scribe.com/>
     Simon Blanchard
     David Blewett <david@dawninglight.net>
@@ -444,6 +445,7 @@ answer newbie questions, and generally made Django that much better:
     tt@gurgle.no
     David Tulig <david.tulig@gmail.com>
     Amit Upadhyay <http://www.amitu.com/blog/>
+    Adam Vandenberg
     Geert Vanderkelen
     Vasil Vangelovski
     I.S. van Oostveen <v.oostveen@idca.nl>

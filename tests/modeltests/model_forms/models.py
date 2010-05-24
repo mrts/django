@@ -99,11 +99,15 @@ class TextFile(models.Model):
         return self.description
 
 try:
-    # If PIL is available, try testing ImageFields.
-    # Checking for the existence of Image is enough for CPython, but
-    # for PyPy, you need to check for the underlying modules
-    # If PIL is not available, ImageField tests are omitted.
-    from PIL import Image, _imaging
+    # If PIL is available, try testing ImageFields. Checking for the existence
+    # of Image is enough for CPython, but for PyPy, you need to check for the
+    # underlying modules If PIL is not available, ImageField tests are omitted.
+    # Try to import PIL in either of the two ways it can end up installed.
+    try:
+        from PIL import Image, _imaging
+    except ImportError:
+        import Image, _imaging
+    
     test_images = True
 
     class ImageFile(models.Model):
@@ -200,6 +204,22 @@ class Post(models.Model):
 
     def __unicode__(self):
         return self.name
+
+class MarkupField(models.CharField):
+    def __init__(self, *args, **kwargs):
+        kwargs["max_length"] = 20
+        super(MarkupField, self).__init__(*args, **kwargs)
+
+    def formfield(self, **kwargs):
+        # don't allow this field to be used in form (real use-case might be
+        # that you know the markup will always be X, but it is among an app
+        # that allows the user to say it could be something else)
+        # regressed at r10062
+        return None
+
+class CustomFieldForExclusionModel(models.Model):
+    name = models.CharField(max_length=10)
+    markup = MarkupField()
 
 __test__ = {'API_TESTS': """
 >>> from django import forms
@@ -1542,6 +1562,19 @@ False
 >>> f = PostForm({'subtitle': "Finally", "title": "Django 1.0 is released", "slug": "Django 1.0", 'posted': '2008-09-03'}, instance=p)
 >>> f.is_valid()
 True
+
+# Model field that returns None to exclude itself with explicit fields ########
+
+>>> class CustomFieldForExclusionForm(ModelForm):
+...     class Meta:
+...         model = CustomFieldForExclusionModel
+...         fields = ['name', 'markup']
+
+>>> CustomFieldForExclusionForm.base_fields.keys()
+['name']
+
+>>> print CustomFieldForExclusionForm()
+<tr><th><label for="id_name">Name:</label></th><td><input id="id_name" type="text" name="name" maxlength="10" /></td></tr>
 
 # Clean up
 >>> import shutil

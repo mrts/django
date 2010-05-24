@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 # Unit and doctests for specific database backends.
+import datetime
+import models
 import unittest
 from django.db import backend, connection
 from django.db.backends.signals import connection_created
 from django.conf import settings
+from django.test import TestCase
 
 class Callproc(unittest.TestCase):
 
@@ -19,6 +22,16 @@ class Callproc(unittest.TestCase):
         else:
             return True
             
+    def test_cursor_var(self):
+        # If the backend is Oracle, test that we can pass cursor variables
+        # as query parameters.
+        if settings.DATABASE_ENGINE == 'oracle':
+            cursor = connection.cursor()
+            var = cursor.var(backend.Database.STRING)
+            cursor.execute("BEGIN %s := 'X'; END; ", [var])
+            self.assertEqual(var.getvalue(), 'X')
+
+
 class LongString(unittest.TestCase):
 
     def test_long_string(self):
@@ -33,6 +46,48 @@ class LongString(unittest.TestCase):
             row = c.fetchone()
             c.execute('DROP TABLE ltext')
             self.assertEquals(long_str, row[0].read())
+
+class DateQuotingTest(TestCase):
+
+    def test_django_date_trunc(self):
+        """
+        Test the custom ``django_date_trunc method``, in particular against
+        fields which clash with strings passed to it (e.g. 'year') - see
+        #12818__.
+
+        __: http://code.djangoproject.com/ticket/12818
+
+        """
+        updated = datetime.datetime(2010, 2, 20)
+        models.SchoolClass.objects.create(year=2009, last_updated=updated)
+        years = models.SchoolClass.objects.dates('last_updated', 'year')
+        self.assertEqual(list(years), [datetime.datetime(2010, 1, 1, 0, 0)])
+
+    def test_django_extract(self):
+        """
+        Test the custom ``django_extract method``, in particular against fields
+        which clash with strings passed to it (e.g. 'day') - see #12818__.
+
+        __: http://code.djangoproject.com/ticket/12818
+
+        """
+        updated = datetime.datetime(2010, 2, 20)
+        models.SchoolClass.objects.create(year=2009, last_updated=updated)
+        classes = models.SchoolClass.objects.filter(last_updated__day=20)
+        self.assertEqual(len(classes), 1)
+
+class ParameterHandlingTest(TestCase):
+    def test_bad_parameter_count(self):
+        "An executemany call with too many/not enough parameters will raise an exception (Refs #12612)"
+        cursor = connection.cursor()
+        query = ('INSERT INTO %s (%s, %s) VALUES (%%s, %%s)' % (
+            connection.introspection.table_name_converter('backends_square'),
+            connection.ops.quote_name('root'),
+            connection.ops.quote_name('square')
+        ))
+        self.assertRaises(Exception, cursor.executemany, query, [(1,2,3),])
+        self.assertRaises(Exception, cursor.executemany, query, [(1,),])
+
 
 def connection_created_test(sender, **kwargs):
     print 'connection_created signal'

@@ -84,6 +84,14 @@ Each separate element of ``datatuple`` results in a separate e-mail message.
 As in ``send_mail()``, recipients in the same ``recipient_list`` will all see
 the other addresses in the e-mail messages' "To:" field.
 
+For example, the following code would send two different messages to
+two different sets of recipients; however, only one connection to the
+mail server would be opened::
+
+    message1 = ('Subject here', 'Here is the message', 'from@example.com, ['first@example.com', 'other@example.com'])
+    message2 = ('Another Subject', 'Here is another message', 'from@example.com', ['second@test.com'])
+    send_mass_mail((message1, message2), fail_silently=False)
+
 send_mass_mail() vs. send_mail()
 --------------------------------
 
@@ -324,7 +332,7 @@ guarantees that any recipient will be able to read the e-mail, regardless of
 their mail client. However, if you are confident that your recipients can
 handle an alternative content type, you can use the ``content_subtype``
 attribute on the ``EmailMessage`` class to change the main content type. The
-major type will always be ``"text"``, but you can change it to the subtype. For
+major type will always be ``"text"``, but you can change the subtype. For
 example::
 
     msg = EmailMessage(subject, html_content, from_email, [to])
@@ -354,11 +362,11 @@ send out, you could send this with::
 Testing e-mail sending
 ----------------------
 
-The are times when you do not want Django to send e-mails at all. For example,
-while developing a website, you probably don't want to send out thousands of
-e-mails -- but you may want to validate that e-mails will be sent to the right
-people under the right conditions, and that those e-mails will contain the
-correct content.
+There are times when you do not want Django to send e-mails at
+all. For example, while developing a website, you probably don't want
+to send out thousands of e-mails -- but you may want to validate that
+e-mails will be sent to the right people under the right conditions,
+and that those e-mails will contain the correct content.
 
 The easiest way to test your project's use of e-mail is to use a "dumb" e-mail
 server that receives the e-mails locally and displays them to the terminal,

@@ -6,12 +6,17 @@ try:
 except ImportError:
     from django.utils import _decimal as decimal    # Python 2.3 fallback
 
+# Try to import PIL in either of the two ways it can end up installed.
+# Checking for the existence of Image is enough for CPython, but for PyPy,
+# you need to check for the underlying modules.
+
 try:
-    # Checking for the existence of Image is enough for CPython, but for PyPy,
-    # you need to check for the underlying modules.
     from PIL import Image, _imaging
 except ImportError:
-    Image = None
+    try:
+        import Image, _imaging
+    except ImportError:
+        Image = None
 
 from django.core.files.storage import FileSystemStorage
 from django.db import models
@@ -52,6 +57,10 @@ class BigS(models.Model):
     s = models.SlugField(max_length=255)
 
 
+class Post(models.Model):
+    title = models.CharField(max_length=100)
+    body = models.TextField()
+    
 ###############################################################################
 # ImageField
 

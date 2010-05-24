@@ -131,7 +131,7 @@ class GenericRelation(RelatedField, Field):
         return self.object_id_field_name
 
     def m2m_reverse_name(self):
-        return self.model._meta.pk.column
+        return self.rel.to._meta.pk.column
 
     def contribute_to_class(self, cls, name):
         super(GenericRelation, self).contribute_to_class(cls, name)
@@ -291,8 +291,6 @@ class BaseGenericInlineFormSet(BaseModelFormSet):
     """
     A formset for generic inline objects to a parent.
     """
-    ct_field_name = "content_type"
-    ct_fk_field_name = "object_id"
 
     def __init__(self, data=None, files=None, instance=None, save_as_new=None,
                  prefix=None, queryset=None):
@@ -388,7 +386,7 @@ class GenericInlineModelAdmin(InlineModelAdmin):
             "formfield_callback": self.formfield_for_dbfield,
             "formset": self.formset,
             "extra": self.extra,
-            "can_delete": True,
+            "can_delete": self.can_delete,
             "can_order": False,
             "fields": fields,
             "max_num": self.max_num,

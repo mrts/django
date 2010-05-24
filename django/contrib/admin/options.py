@@ -20,10 +20,6 @@ from django.utils.text import capfirst, get_text_list
 from django.utils.translation import ugettext as _
 from django.utils.translation import ungettext, ugettext_lazy
 from django.utils.encoding import force_unicode
-try:
-    set
-except NameError:
-    from sets import Set as set     # Python 2.3 fallback
 
 HORIZONTAL, VERTICAL = 1, 2
 # returns the <ul> class for a given radio_admin field
@@ -53,6 +49,7 @@ FORMFIELD_FOR_DBFIELD_DEFAULTS = {
 
 class BaseModelAdmin(object):
     """Functionality common to both ModelAdmin and InlineAdmin."""
+    __metaclass__ = forms.MediaDefiningClass
 
     raw_id_fields = ()
     fields = None
@@ -66,7 +63,9 @@ class BaseModelAdmin(object):
     formfield_overrides = {}
 
     def __init__(self):
-        self.formfield_overrides = dict(FORMFIELD_FOR_DBFIELD_DEFAULTS, **self.formfield_overrides)
+        overrides = FORMFIELD_FOR_DBFIELD_DEFAULTS.copy()
+        overrides.update(self.formfield_overrides)
+        self.formfield_overrides = overrides
 
     def formfield_for_dbfield(self, db_field, **kwargs):
         """
@@ -174,7 +173,6 @@ class BaseModelAdmin(object):
 
 class ModelAdmin(BaseModelAdmin):
     "Encapsulates all admin options and functionality for a given model."
-    __metaclass__ = forms.MediaDefiningClass
 
     list_display = ('__str__',)
     list_display_links = ()
@@ -193,6 +191,7 @@ class ModelAdmin(BaseModelAdmin):
     change_form_template = None
     change_list_template = None
     delete_confirmation_template = None
+    delete_selected_confirmation_template = None
     object_history_template = None
 
     # Actions
@@ -536,16 +535,16 @@ class ModelAdmin(BaseModelAdmin):
             for formset in formsets:
                 for added_object in formset.new_objects:
                     change_message.append(_('Added %(name)s "%(object)s".')
-                                          % {'name': added_object._meta.verbose_name,
+                                          % {'name': force_unicode(added_object._meta.verbose_name),
                                              'object': force_unicode(added_object)})
                 for changed_object, changed_fields in formset.changed_objects:
                     change_message.append(_('Changed %(list)s for %(name)s "%(object)s".')
                                           % {'list': get_text_list(changed_fields, _('and')),
-                                             'name': changed_object._meta.verbose_name,
+                                             'name': force_unicode(changed_object._meta.verbose_name),
                                              'object': force_unicode(changed_object)})
                 for deleted_object in formset.deleted_objects:
                     change_message.append(_('Deleted %(name)s "%(object)s".')
-                                          % {'name': deleted_object._meta.verbose_name,
+                                          % {'name': force_unicode(deleted_object._meta.verbose_name),
                                              'object': force_unicode(deleted_object)})
         change_message = ' '.join(change_message)
         return change_message or _('No fields changed.')
@@ -676,6 +675,7 @@ class ModelAdmin(BaseModelAdmin):
         changelist; it returns an HttpResponse if the action was handled, and
         None otherwise.
         """
+
         # There can be multiple action forms on the page (at the top
         # and bottom of the change list, for example). Get the action
         # whose button was pushed.
@@ -927,9 +927,9 @@ class ModelAdmin(BaseModelAdmin):
             return HttpResponseRedirect(request.path + '?' + ERROR_FLAG + '=1')
 
         # If the request was POSTed, this might be a bulk action or a bulk edit.
-        # Try to look up an action first, but if this isn't an action the POST
-        # will fall through to the bulk edit check, below.
-        if actions and request.method == 'POST':
+        # Try to look up an action or confirmation first, but if this isn't an
+        # action the POST will fall through to the bulk edit check, below.
+        if actions and request.method == 'POST' and (helpers.ACTION_CHECKBOX_NAME in request.POST or 'index' in request.POST):
             response = self.response_action(request, queryset=cl.get_query_set())
             if response:
                 return response
@@ -1021,9 +1021,7 @@ class ModelAdmin(BaseModelAdmin):
 
         # Populate deleted_objects, a data structure of all related objects that
         # will also be deleted.
-        deleted_objects = [mark_safe(u'%s: <a href="../../%s/">%s</a>' % (escape(force_unicode(capfirst(opts.verbose_name))), object_id, escape(obj))), []]
-        perms_needed = set()
-        get_deleted_objects(deleted_objects, perms_needed, request.user, obj, opts, 1, self.admin_site)
+        (deleted_objects, perms_needed) = get_deleted_objects((obj,), opts, request.user, self.admin_site)
 
         if request.POST: # The user has already confirmed the deletion.
             if perms_needed:
@@ -1128,6 +1126,7 @@ class InlineModelAdmin(BaseModelAdmin):
     template = None
     verbose_name = None
     verbose_name_plural = None
+    can_delete = True
 
     def __init__(self, parent_model, admin_site):
         self.admin_site = admin_site
@@ -1170,6 +1169,7 @@ class InlineModelAdmin(BaseModelAdmin):
             "formfield_callback": curry(self.formfield_for_dbfield, request=request),
             "extra": self.extra,
             "max_num": self.max_num,
+            "can_delete": self.can_delete,
         }
         defaults.update(kwargs)
         return inlineformset_factory(self.parent_model, self.model, **defaults)

@@ -589,6 +589,14 @@ installation. Each string should be a full Python path to a Python package that
 contains a Django application, as created by :djadmin:`django-admin.py startapp
 <startapp>`.
 
+.. admonition:: App names must be unique
+
+    The application names (that is, the final dotted part of the
+    path to the module containing ``models.py``) defined in
+    :setting:`INSTALLED_APPS` *must* be unique. For example, you can't
+    include both ``django.contrib.auth`` and ``myproject.auth`` in
+    INSTALLED_APPS.
+
 .. setting:: INTERNAL_IPS
 
 INTERNAL_IPS
@@ -610,8 +618,8 @@ LANGUAGE_CODE
 Default: ``'en-us'``
 
 A string representing the language code for this installation. This should be in
-standard language format. For example, U.S. English is ``"en-us"``. See
-:ref:`topics-i18n`.
+standard :term:`language format<language code>`. For example, U.S. English is
+``"en-us"``. See :ref:`topics-i18n`.
 
 .. setting:: LANGUAGE_COOKIE_NAME
 
@@ -638,9 +646,11 @@ see the current list of translated languages by looking in
 
 .. _online source: http://code.djangoproject.com/browser/django/trunk/django/conf/global_settings.py
 
-The list is a tuple of two-tuples in the format (language code, language
-name) -- for example, ``('ja', 'Japanese')``. This specifies which languages
-are available for language selection. See :ref:`topics-i18n`.
+The list is a tuple of two-tuples in the format ``(language code, language
+name)``, the ``language code`` part should be a
+:term:`language name<language code>` -- for example, ``('ja', 'Japanese')``.
+This specifies which languages are available for language selection. See
+:ref:`topics-i18n`.
 
 Generally, the default value should suffice. Only set this setting if you want
 to restrict language selection to a subset of the Django-provided languages.
@@ -675,7 +685,7 @@ LOCALE_PATHS
 Default: ``()`` (Empty tuple)
 
 A tuple of directories where Django looks for translation files.
-See :ref:`translations-in-your-own-projects`.
+See :ref:`using-translations-in-your-own-projects`.
 
 .. setting:: LOGIN_REDIRECT_URL
 
@@ -871,6 +881,9 @@ SESSION_ENGINE
 
 .. versionadded:: 1.0
 
+.. versionchanged:: 1.1
+   The ``cached_db`` backend was added
+
 Default: ``django.contrib.sessions.backends.db``
 
 Controls where Django stores session data. Valid values are:
@@ -878,6 +891,7 @@ Controls where Django stores session data. Valid values are:
     * ``'django.contrib.sessions.backends.db'``
     * ``'django.contrib.sessions.backends.file'``
     * ``'django.contrib.sessions.backends.cache'``
+    * ``'django.contrib.sessions.backends.cached_db'``
 
 See :ref:`topics-http-sessions`.
 
@@ -1139,28 +1153,42 @@ TIME_ZONE
 
 Default: ``'America/Chicago'``
 
-A string representing the time zone for this installation. `See available choices`_.
-(Note that list of available choices lists more than one on the same line;
-you'll want to use just one of the choices for a given time zone. For instance,
-one line says ``'Europe/London GB GB-Eire'``, but you should use the first bit
-of that -- ``'Europe/London'`` -- as your ``TIME_ZONE`` setting.)
+.. versionchanged:: 1.1.2
+   ``None`` was added as an allowed value.
 
-Note that this is the time zone to which Django will convert all dates/times --
-not necessarily the timezone of the server. For example, one server may serve
-multiple Django-powered sites, each with a separate time-zone setting.
+A string representing the time zone for this installation, or
+``None``. `See available choices`_. (Note that list of available
+choices lists more than one on the same line; you'll want to use just
+one of the choices for a given time zone. For instance, one line says
+``'Europe/London GB GB-Eire'``, but you should use the first bit of
+that -- ``'Europe/London'`` -- as your ``TIME_ZONE`` setting.)
 
-Normally, Django sets the ``os.environ['TZ']`` variable to the time zone you
-specify in the ``TIME_ZONE`` setting. Thus, all your views and models will
-automatically operate in the correct time zone. However, if you're manually
-:ref:`manually configuring settings
-<settings-without-django-settings-module>`, Django will *not* touch the ``TZ``
-environment variable, and it'll be up to you to ensure your processes are
-running in the correct environment.
+Note that this is the time zone to which Django will convert all
+dates/times -- not necessarily the timezone of the server. For
+example, one server may serve multiple Django-powered sites, each with
+a separate time-zone setting.
+
+Normally, Django sets the ``os.environ['TZ']`` variable to the time
+zone you specify in the ``TIME_ZONE`` setting. Thus, all your views
+and models will automatically operate in the correct time zone.
+However, Django won't set the ``TZ`` environment variable under the
+following conditions:
+
+ * If you're using the manual configuration option as described in
+   :ref:`manually configuring settings
+   <settings-without-django-settings-module>`, or
+
+ * If you specify ``TIME_ZONE = None``. This will cause Django to fall
+   back to using the system timezone.
+
+If Django doesn't set the ``TZ`` environment variable, it's up to you
+to ensure your processes are running in the correct environment.
 
 .. note::
-    Django cannot reliably use alternate time zones in a Windows environment.
-    If you're running Django on Windows, this variable must be set to match the
-    system timezone.
+    Django cannot reliably use alternate time zones in a Windows
+    environment. If you're running Django on Windows, this variable
+    must be set to match the system timezone.
+
 
 .. _See available choices: http://www.postgresql.org/docs/8.1/static/datetime-keywords.html#DATETIME-TIMEZONE-SET-TABLE
 

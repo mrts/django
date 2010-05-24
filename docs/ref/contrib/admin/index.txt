@@ -622,6 +622,8 @@ with an operator:
 
 .. attribute:: ModelAdmin.formfield_overrides
 
+.. versionadded:: 1.1
+
 This provides a quick-and-dirty way to override some of the
 :class:`~django.forms.Field` options for use in the admin.
 ``formfield_overrides`` is a dictionary mapping a field class to a dict of
@@ -662,52 +664,53 @@ The value is another dictionary; these arguments will be passed to
 
 .. attribute:: ModelAdmin.actions
 
+.. versionadded:: 1.1
+
 A list of actions to make available on the change list page. See
 :ref:`ref-contrib-admin-actions` for details.
 
 .. attribute:: ModelAdmin.actions_on_top
 .. attribute:: ModelAdmin.actions_on_bottom
 
+.. versionadded:: 1.1
+
 Controls where on the page the actions bar appears. By default, the admin
 changelist displays actions at the top of the page (``actions_on_top = True;
 actions_on_bottom = False``).
 
-.. attribute:: ModelAdmin.change_list_template
+Custom template options
+~~~~~~~~~~~~~~~~~~~~~~~
 
-Path to a custom template that will be used by the model objects "change list"
-view. Templates can override or extend base admin templates as described in
-`Overriding Admin Templates`_.
-
-If you don't specify this attribute, a default template shipped with Django
-that provides the standard appearance is used.
+The `Overriding Admin Templates`_ section describes how to override or extend
+the default admin templates.  Use the following options to override the default
+templates used by the :class:`ModelAdmin` views:
 
 .. attribute:: ModelAdmin.change_form_template
 
-Path to a custom template that will be used by both the model object creation
-and change views. Templates can override or extend base admin templates as
-described in `Overriding Admin Templates`_.
+    Path to a custom template, used by :meth:`change_view`.
 
-If you don't specify this attribute, a default template shipped with Django
-that provides the standard appearance is used.
+.. attribute:: ModelAdmin.change_list_template
 
-.. attribute:: ModelAdmin.object_history_template
-
-Path to a custom template that will be used by the model object change history
-display view. Templates can override or extend base admin templates as
-described in `Overriding Admin Templates`_.
-
-If you don't specify this attribute, a default template shipped with Django
-that provides the standard appearance is used.
+    Path to a custom template, used by :meth:`changelist_view`.
 
 .. attribute:: ModelAdmin.delete_confirmation_template
 
-Path to a custom template that will be used by the view responsible of showing
-the confirmation page when the user decides to delete one or more model
-objects. Templates can override or extend base admin templates as described in
-`Overriding Admin Templates`_.
+    Path to a custom template, used by :meth:`delete_view` for displaying a
+    confirmation page when deleting one or more objects.
 
-If you don't specify this attribute, a default template shipped with Django
-that provides the standard appearance is used.
+.. attribute:: ModelAdmin.delete_selected_confirmation_template
+
+    .. versionadded:: 1.1.2
+
+    Path to a custom template, used by the :meth:`delete_selected`
+    action method for displaying a confirmation page when deleting one
+    or more objects. See the :ref:`actions
+    documentation<ref-contrib-admin-actions>`.
+
+.. attribute:: ModelAdmin.object_history_template
+
+    Path to a custom template, used by :meth:`history_view`.
+
 
 .. _model-admin-methods:
 
@@ -819,6 +822,20 @@ return a subset of objects for this foreign key field based on the user::
 
 This uses the ``HttpRequest`` instance to filter the ``Car`` foreign key field
 to only the cars owned by the ``User`` instance.
+
+.. method:: ModelAdmin.queryset(self, request)
+
+The ``queryset`` method on a ``ModelAdmin`` returns a
+:class:`~django.db.models.QuerySet` of all model instances that can be
+edited by the admin site. One use case for overriding this method is
+to show objects owned by the logged-in user::
+
+    class MyModelAdmin(admin.ModelAdmin):
+        def queryset(self, request):
+            qs = super(MyModelAdmin, self).queryset(request)
+            if request.user.is_superuser:
+                return qs
+            return qs.filter(author=request.user)
 
 Other methods
 ~~~~~~~~~~~~~
@@ -976,8 +993,8 @@ many possibilities of customization. Inlines are built around
 ``form``
 ~~~~~~~~
 
-The value for ``form`` defaults to ``BaseModelForm``. This is what is
-passed through to ``formset_factory`` when creating the formset for this
+The value for ``form`` defaults to ``ModelForm``. This is what is
+passed through to ``inlineformset_factory`` when creating the formset for this
 inline.
 
 ``extra``

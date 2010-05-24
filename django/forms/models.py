@@ -154,6 +154,7 @@ def fields_for_model(model, fields=None, exclude=None, formfield_callback=lambda
     in the ``fields`` argument.
     """
     field_list = []
+    ignored = []
     opts = model._meta
     for f in opts.fields + opts.many_to_many:
         if not f.editable:
@@ -165,9 +166,14 @@ def fields_for_model(model, fields=None, exclude=None, formfield_callback=lambda
         formfield = formfield_callback(f)
         if formfield:
             field_list.append((f.name, formfield))
+        else:
+            ignored.append(f.name)
     field_dict = SortedDict(field_list)
     if fields:
-        field_dict = SortedDict([(f, field_dict.get(f)) for f in fields if (not exclude) or (exclude and f not in exclude)])
+        field_dict = SortedDict(
+            [(f, field_dict.get(f)) for f in fields
+                if ((not exclude) or (exclude and f not in exclude)) and (f not in ignored)]
+        )
     return field_dict
 
 class ModelFormOptions(object):
@@ -214,6 +220,8 @@ class BaseModelForm(BaseForm):
                  empty_permitted=False, instance=None):
         opts = self._meta
         if instance is None:
+            if opts.model is None:
+                raise ValueError('ModelForm has no model class specified.')
             # if we didn't get an instance, instantiate a new one
             self.instance = opts.model()
             object_data = {}
@@ -949,6 +957,12 @@ class ModelChoiceField(ChoiceField):
         self.queryset = queryset
         self.choice_cache = None
         self.to_field_name = to_field_name
+
+    def __deepcopy__(self, memo):
+        result = super(ChoiceField, self).__deepcopy__(memo)
+        # Need to force a new ModelChoiceIterator to be created, bug #11183
+        result.queryset = result.queryset
+        return result
 
     def _get_queryset(self):
         return self._queryset

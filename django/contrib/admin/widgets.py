@@ -126,7 +126,7 @@ class ForeignKeyRawIdWidget(forms.TextInput):
 
     def base_url_parameters(self):
         params = {}
-        if self.rel.limit_choices_to:
+        if self.rel.limit_choices_to and hasattr(self.rel.limit_choices_to, 'items'):
             items = []
             for k, v in self.rel.limit_choices_to.items():
                 if isinstance(v, list):
@@ -144,11 +144,15 @@ class ForeignKeyRawIdWidget(forms.TextInput):
         return params
 
     def label_for_value(self, value, name):
+        # a placeholder that will be filled in
+        # JavaScript dismissRelatedLookupPopup()
+        ret = ' <strong id="%s"></strong>' % name
         if value:
             key = self.rel.get_related_field().name
-            obj = self.rel.to._default_manager.get(**{key: value})
-            related_url = get_related_url(obj, obj.pk)
-            return (' <strong id="%(name)s"><a href="%(url)s" '
+            try:
+                obj = self.rel.to._default_manager.get(**{key: value})
+                related_url = get_related_url(obj, obj.pk)
+                ret = (' <strong id="%(name)s"><a href="%(url)s" '
                     'onclick="return showRelatedObjectPopup(this);">%(label)s</a> '
                     '<a href="#" onclick="return clearRawId(this);">'
                     '<img src="%(prefix)simg/admin/icon_deletelink.gif" '
@@ -158,10 +162,10 @@ class ForeignKeyRawIdWidget(forms.TextInput):
                         'prefix': settings.ADMIN_MEDIA_PREFIX,
                         'clear': _("Clear"),}
                     )
-        else:
-            # a placeholder that will be filled in
-            # JavaScript dismissRelatedLookupPopup()
-            return ' <strong id="%s"></strong>' % name
+            except self.rel.to.DoesNotExist:
+                pass
+
+        return ret
 
 class ManyToManyRawIdWidget(ForeignKeyRawIdWidget):
     """

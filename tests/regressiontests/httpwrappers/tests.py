@@ -465,7 +465,43 @@ BadHeaderError: Header values can't contain newlines (got 'test\\nstr')
 [u'1', u'2', u'3', u'4']
 """
 
-from django.http import QueryDict, HttpResponse
+from django.http import QueryDict, HttpResponse, CompatCookie
+from django.test import TestCase
+
+
+class Cookies(TestCase):
+
+    def test_encode(self):
+        """
+        Test that we don't output tricky characters in encoded value
+        """
+        # Python 2.4 compatibility note: Python 2.4's cookie implementation
+        # always returns Set-Cookie headers terminating in semi-colons.
+        # That's not the bug this test is looking for, so ignore it.
+        c = CompatCookie()
+        c['test'] = "An,awkward;value"
+        self.assert_(";" not in c.output().rstrip(';')) # IE compat
+        self.assert_("," not in c.output().rstrip(';')) # Safari compat
+
+    def test_decode(self):
+        """
+        Test that we can still preserve semi-colons and commas
+        """
+        c = CompatCookie()
+        c['test'] = "An,awkward;value"
+        c2 = CompatCookie()
+        c2.load(c.output())
+        self.assertEqual(c['test'].value, c2['test'].value)
+
+    def test_decode_2(self):
+        """
+        Test that we haven't broken normal encoding
+        """
+        c = CompatCookie()
+        c['test'] = "\xf0"
+        c2 = CompatCookie()
+        c2.load(c.output())
+        self.assertEqual(c['test'].value, c2['test'].value)
 
 if __name__ == "__main__":
     import doctest

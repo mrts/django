@@ -3,6 +3,7 @@ tests = r"""
 >>> from django.forms import *
 >>> from django.forms.widgets import RadioFieldRenderer
 >>> from django.utils.safestring import mark_safe
+>>> from django.utils.encoding import force_unicode
 >>> import datetime
 >>> import time
 >>> import re
@@ -180,6 +181,11 @@ u'<input type="hidden" class="fun" value="\u0160\u0110\u0106\u017d\u0107\u017e\u
 >>> w = MultipleHiddenInput(attrs={'class': 'pretty'})
 >>> w.render('email', ['foo@example.com'], attrs={'class': 'special'})
 u'<input type="hidden" class="special" value="foo@example.com" name="email" />'
+
+Each input gets a separate ID.
+>>> w = MultipleHiddenInput()
+>>> w.render('letters', list('abc'), attrs={'id': 'hideme'})
+u'<input type="hidden" name="letters" value="a" id="hideme_0" />\n<input type="hidden" name="letters" value="b" id="hideme_1" />\n<input type="hidden" name="letters" value="c" id="hideme_2" />'
 
 # FileInput Widget ############################################################
 
@@ -525,6 +531,20 @@ Choices can be nested one level in order to create HTML optgroups:
 <option value="2">Yes</option>
 <option value="3" selected="selected">No</option>
 </select>
+>>> w._has_changed(False, None)
+True
+>>> w._has_changed(None, False)
+True
+>>> w._has_changed(None, None)
+False
+>>> w._has_changed(False, False)
+False
+>>> w._has_changed(True, False)
+True
+>>> w._has_changed(True, None)
+True
+>>> w._has_changed(True, True)
+False
 
 """ + \
 r""" # [This concatenation is to keep the string below the jython's 32K limit].
@@ -1014,6 +1034,14 @@ True
 >>> w.render('nums', ['ŠĐĆŽćžšđ'], choices=[('ŠĐĆŽćžšđ', 'ŠĐabcĆŽćžšđ'), ('ćžšđ', 'abcćžšđ')])
 u'<ul>\n<li><label><input type="checkbox" name="nums" value="1" /> 1</label></li>\n<li><label><input type="checkbox" name="nums" value="2" /> 2</label></li>\n<li><label><input type="checkbox" name="nums" value="3" /> 3</label></li>\n<li><label><input checked="checked" type="checkbox" name="nums" value="\u0160\u0110\u0106\u017d\u0107\u017e\u0161\u0111" /> \u0160\u0110abc\u0106\u017d\u0107\u017e\u0161\u0111</label></li>\n<li><label><input type="checkbox" name="nums" value="\u0107\u017e\u0161\u0111" /> abc\u0107\u017e\u0161\u0111</label></li>\n</ul>'
 
+# Each input gets a separate ID
+>>> print CheckboxSelectMultiple().render('letters', list('ac'), choices=zip(list('abc'), list('ABC')), attrs={'id': 'abc'})
+<ul>
+<li><label for="abc_0"><input checked="checked" type="checkbox" name="letters" value="a" id="abc_0" /> A</label></li>
+<li><label for="abc_1"><input type="checkbox" name="letters" value="b" id="abc_1" /> B</label></li>
+<li><label for="abc_2"><input checked="checked" type="checkbox" name="letters" value="c" id="abc_2" /> C</label></li>
+</ul>
+
 # MultiWidget #################################################################
 
 >>> class MyMultiWidget(MultiWidget):
@@ -1107,6 +1135,15 @@ u'<input type="text" name="date" value="17/09/2007 12:51" />'
 >>> w._has_changed(d, '17/09/2007 12:51')
 False
 
+Make sure a custom format works with _has_changed. The hidden input will use
+force_unicode to display the initial value.
+>>> data = datetime.datetime(2010, 3, 6, 12, 0, 0)
+>>> custom_format = '%d.%m.%Y %H:%M'
+>>> w = DateTimeInput(format=custom_format)
+>>> w._has_changed(force_unicode(data), data.strftime(custom_format))
+False
+
+
 # DateInput ###################################################################
 
 >>> w = DateInput()
@@ -1131,6 +1168,15 @@ Use 'format' to change the way a value is displayed.
 u'<input type="text" name="date" value="17/09/2007" />'
 >>> w._has_changed(d, '17/09/2007')
 False
+
+Make sure a custom format works with _has_changed. The hidden input will use
+force_unicode to display the initial value.
+>>> data = datetime.date(2010, 3, 6)
+>>> custom_format = '%d.%m.%Y'
+>>> w = DateInput(format=custom_format)
+>>> w._has_changed(force_unicode(data), data.strftime(custom_format))
+False
+
 
 # TimeInput ###################################################################
 
@@ -1160,6 +1206,15 @@ u'<input type="text" name="time" value="12:51" />'
 >>> w._has_changed(t, '12:51')
 False
 
+Make sure a custom format works with _has_changed. The hidden input will use
+force_unicode to display the initial value.
+>>> data = datetime.time(13, 0)
+>>> custom_format = '%I:%M %p'
+>>> w = TimeInput(format=custom_format)
+>>> w._has_changed(force_unicode(data), data.strftime(custom_format))
+False
+
+
 # SplitHiddenDateTimeWidget ###################################################
 
 >>> from django.forms.widgets import SplitHiddenDateTimeWidget
@@ -1179,3 +1234,43 @@ u'<input type="hidden" name="date_0" value="2007-09-17" /><input type="hidden" n
 
 """
 
+
+from django.utils import copycompat as copy
+from unittest import TestCase
+from django import forms
+
+
+class SelectAndTextWidget(forms.MultiWidget):
+    """
+    MultiWidget subclass
+    """
+    def __init__(self, choices=[]):
+        widgets = [
+            forms.RadioSelect(choices=choices),
+            forms.TextInput
+        ]
+        super(SelectAndTextWidget, self).__init__(widgets)
+    
+    def _set_choices(self, choices):
+        """
+        When choices are set for this widget, we want to pass those along to the Select widget
+        """
+        self.widgets[0].choices = choices
+    def _get_choices(self):
+        """
+        The choices for this widget are the Select widget's choices
+        """
+        return self.widgets[0].choices
+    choices = property(_get_choices, _set_choices)
+
+
+class WidgetTests(TestCase):
+
+    def test_12048(self):
+        # See ticket #12048.
+        w1 = SelectAndTextWidget(choices=[1,2,3])
+        w2 = copy.deepcopy(w1)
+        w2.choices = [4,5,6]
+        # w2 ought to be independent of w1, since MultiWidget ought
+        # to make a copy of its sub-widgets when it is copied.
+        self.assertEqual(w1.choices, [1,2,3])

@@ -40,6 +40,9 @@ def to_locale(language, to_lower=False):
         if to_lower:
             return language[:p].lower()+'_'+language[p+1:].lower()
         else:
+            # Get correct locale for sr-latn
+            if len(language[p+1:]) > 2:
+                return language[:p].lower()+'_'+language[p+1].upper()+language[p+2:].lower()
             return language[:p].lower()+'_'+language[p+1:].upper()
     else:
         return language.lower()
@@ -173,15 +176,15 @@ def translation(language):
             if os.path.isdir(localepath):
                 res = _merge(localepath)
 
-        if projectpath and os.path.isdir(projectpath):
-            res = _merge(projectpath)
-
         for appname in settings.INSTALLED_APPS:
             app = import_module(appname)
             apppath = os.path.join(os.path.dirname(app.__file__), 'locale')
 
             if os.path.isdir(apppath):
                 res = _merge(apppath)
+
+        if projectpath and os.path.isdir(projectpath):
+            res = _merge(projectpath)
 
         if res is None:
             if fallback is not None:
@@ -351,6 +354,10 @@ def get_language_from_request(request):
             return lang_code
 
     lang_code = request.COOKIES.get(settings.LANGUAGE_COOKIE_NAME)
+
+    if lang_code and lang_code not in supported:
+        lang_code = lang_code.split('-')[0] # e.g. if fr-ca is not supported fallback to fr
+
     if lang_code and lang_code in supported and check_for_language(lang_code):
         return lang_code
 

@@ -1,10 +1,15 @@
 import datetime
-import decimal
 import os
 import re
 import time
+import math
 
 import django.utils.copycompat as copy
+
+try:
+    import decimal
+except ImportError:
+    from django.utils import _decimal as decimal    # for Python 2.3
 
 from django.db import connection
 from django.db.models import signals
@@ -277,7 +282,7 @@ class Field(object):
         return first_choice + list(self.flatchoices)
 
     def _get_val_from_obj(self, obj):
-        if obj:
+        if obj is not None:
             return getattr(obj, self.attname)
         else:
             return self.get_default()
@@ -304,7 +309,7 @@ class Field(object):
         """Flattened version of choices tuple."""
         flat = []
         for choice, value in self.choices:
-            if type(value) in (list, tuple):
+            if isinstance(value, (list, tuple)):
                 flat.extend(value)
             else:
                 flat.append((choice,value))
@@ -318,9 +323,11 @@ class Field(object):
         "Returns a django.forms.Field instance for this database Field."
         defaults = {'required': not self.blank, 'label': capfirst(self.verbose_name), 'help_text': self.help_text}
         if self.has_default():
-            defaults['initial'] = self.get_default()
             if callable(self.default):
+                defaults['initial'] = self.default
                 defaults['show_hidden_initial'] = True
+            else:
+                defaults['initial'] = self.get_default()
         if self.choices:
             # Fields with choices get special treatment.
             include_blank = self.blank or not (self.has_default() or 'initial' in kwargs)
@@ -335,7 +342,7 @@ class Field(object):
             for k in kwargs.keys():
                 if k not in ('coerce', 'empty_value', 'choices', 'required',
                              'widget', 'label', 'initial', 'help_text',
-                             'error_messages'):
+                             'error_messages', 'show_hidden_initial'):
                     del kwargs[k]
         defaults.update(kwargs)
         return form_class(**defaults)
@@ -434,6 +441,9 @@ class CharField(Field):
                 raise exceptions.ValidationError(
                     ugettext_lazy("This field cannot be null."))
         return smart_unicode(value)
+
+    def get_db_prep_value(self, value):
+        return self.to_python(value)
 
     def formfield(self, **kwargs):
         defaults = {'max_length': self.max_length}
@@ -713,6 +723,12 @@ class IntegerField(Field):
             return None
         return int(value)
 
+    def get_db_prep_lookup(self, lookup_type, value):
+        if (lookup_type == 'gte' or lookup_type == 'lt') \
+           and isinstance(value, float):
+                value = math.ceil(value)
+        return super(IntegerField, self).get_db_prep_lookup(lookup_type, value)
+
     def get_internal_type(self):
         return "IntegerField"
 
@@ -833,6 +849,11 @@ class TextField(Field):
     def get_internal_type(self):
         return "TextField"
 
+    def get_db_prep_value(self, value):
+        if isinstance(value, basestring) or value is None:
+            return value
+        return smart_unicode(value)
+
     def formfield(self, **kwargs):
         defaults = {'widget': forms.Textarea}
         defaults.update(kwargs)
@@ -859,7 +880,7 @@ class TimeField(Field):
             # Not usually a good idea to pass in a datetime here (it loses
             # information), but this can be a side-effect of interacting with a
             # database backend (e.g. Oracle), so we'll be accommodating.
-            return value.time
+            return value.time()
 
         # Attempt to parse a datetime:
         value = smart_str(value)

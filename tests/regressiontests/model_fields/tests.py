@@ -6,7 +6,7 @@ from django import forms
 from django.db import models
 from django.core.exceptions import ValidationError
 
-from models import Foo, Bar, Whiz, BigD, BigS, Image
+from models import Foo, Bar, Whiz, BigD, BigS, Image, Post
 
 try:
     from decimal import Decimal
@@ -25,6 +25,20 @@ if Image:
             ImageFieldUsingFileTests, \
             TwoImageFieldTests
 
+
+class BasicFieldTests(django.test.TestCase):
+    def test_show_hidden_initial(self):
+        """
+        Regression test for #12913. Make sure fields with choices respect
+        show_hidden_initial as a kwarg to models.Field.formfield()
+        """
+        choices = [(0, 0), (1, 1)]
+        model_field = models.Field(choices=choices)
+        form_field = model_field.formfield(show_hidden_initial=True)
+        self.failUnless(form_field.show_hidden_initial)
+
+        form_field = model_field.formfield(show_hidden_initial=False)
+        self.failIf(form_field.show_hidden_initial)
 
 class DecimalFieldTests(django.test.TestCase):
     def test_to_python(self):
@@ -144,3 +158,17 @@ class SlugFieldTests(django.test.TestCase):
         bs = BigS.objects.create(s = 'slug'*50)
         bs = BigS.objects.get(pk=bs.pk)
         self.assertEqual(bs.s, 'slug'*50)
+
+class TypeCoercionTests(django.test.TestCase):
+    """
+    Test that database lookups can accept the wrong types and convert
+    them with no error: especially on Postgres 8.3+ which does not do
+    automatic casting at the DB level. See #10015.
+
+    """
+    def test_lookup_integer_in_charfield(self):
+        self.assertEquals(Post.objects.filter(title=9).count(), 0)
+
+    def test_lookup_integer_in_textfield(self):
+        self.assertEquals(Post.objects.filter(body=24).count(), 0)
+

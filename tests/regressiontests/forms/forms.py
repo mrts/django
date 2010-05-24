@@ -295,6 +295,24 @@ attribute in the Form gets precedence.
 >>> print f['get_spam']
 <input checked="checked" type="checkbox" name="get_spam" />
 
+'True' or 'true' should be rendered without a value attribute
+>>> f = SignupForm({'email': 'test@example.com', 'get_spam': 'True'}, auto_id=False)
+>>> print f['get_spam']
+<input checked="checked" type="checkbox" name="get_spam" />
+
+>>> f = SignupForm({'email': 'test@example.com', 'get_spam': 'true'}, auto_id=False)
+>>> print f['get_spam']
+<input checked="checked" type="checkbox" name="get_spam" />
+
+A value of 'False' or 'false' should be rendered unchecked
+>>> f = SignupForm({'email': 'test@example.com', 'get_spam': 'False'}, auto_id=False)
+>>> print f['get_spam']
+<input type="checkbox" name="get_spam" />
+
+>>> f = SignupForm({'email': 'test@example.com', 'get_spam': 'false'}, auto_id=False)
+>>> print f['get_spam']
+<input type="checkbox" name="get_spam" />
+
 Any Field can have a Widget class passed to its constructor:
 >>> class ContactForm(Form):
 ...     subject = CharField()
@@ -1813,5 +1831,15 @@ True
 ...     field1 = CharField(max_length=50, show_hidden_initial=True)
 >>> print MyForm()
 <tr><th><label for="id_field1">Field1:</label></th><td><input id="id_field1" type="text" name="field1" maxlength="50" /><input type="hidden" name="initial-field1" id="initial-id_field1" /></td></tr>
+
+# Checking that the label for SplitDateTimeField is not being displayed #####
+
+>>> from django.forms import *
+>>> class EventForm(Form):
+...     happened_at = SplitDateTimeField(widget=widgets.SplitHiddenDateTimeWidget)
+...
+>>> form = EventForm()
+>>> form.as_ul()
+u'<input type="hidden" name="happened_at_0" id="id_happened_at_0" /><input type="hidden" name="happened_at_1" id="id_happened_at_1" />'
 
 """

@@ -2,6 +2,11 @@ from types import GeneratorType
 
 from django.utils.copycompat import deepcopy
 
+# Python 2.3 doesn't have set as a builtin
+try:
+    set
+except NameError:
+    from sets import Set as set
 
 class MergeDict(object):
     """
@@ -37,11 +42,32 @@ class MergeDict(object):
                 return dict_.getlist(key)
         return []
 
-    def items(self):
-        item_list = []
+    def iteritems(self):
+        seen = set()
         for dict_ in self.dicts:
-            item_list.extend(dict_.items())
-        return item_list
+            for item in dict_.iteritems():
+                k, v = item
+                if k in seen:
+                    continue
+                seen.add(k)
+                yield item
+
+    def iterkeys(self):
+        for k, v in self.iteritems():
+            yield k
+
+    def itervalues(self):
+        for k, v in self.iteritems():
+            yield v
+
+    def items(self):
+        return list(self.iteritems())
+
+    def keys(self):
+        return list(self.iterkeys())
+
+    def values(self):
+        return list(self.itervalues())
 
     def has_key(self, key):
         for dict_ in self.dicts:
@@ -50,6 +76,7 @@ class MergeDict(object):
         return False
 
     __contains__ = has_key
+    __iter__ = iterkeys
 
     def copy(self):
         """Returns a copy of this object."""

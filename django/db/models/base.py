@@ -18,7 +18,7 @@ from django.db import connection, transaction, DatabaseError
 from django.db.models import signals
 from django.db.models.loading import register_models, get_model
 import django.utils.copycompat as copy
-from django.utils.functional import curry
+from django.utils.functional import curry, update_wrapper
 from django.utils.encoding import smart_str, force_unicode, smart_unicode
 from django.conf import settings
 
@@ -55,10 +55,14 @@ class ModelBase(type):
 
         new_class.add_to_class('_meta', Options(meta, **kwargs))
         if not abstract:
-            new_class.add_to_class('DoesNotExist',
-                    subclass_exception('DoesNotExist', ObjectDoesNotExist, module))
-            new_class.add_to_class('MultipleObjectsReturned',
-                    subclass_exception('MultipleObjectsReturned', MultipleObjectsReturned, module))
+            new_class.add_to_class('DoesNotExist', subclass_exception('DoesNotExist',
+                    tuple([x.DoesNotExist
+                            for x in parents if hasattr(x, '_meta') and not x._meta.abstract])
+                                    or (ObjectDoesNotExist,), module))
+            new_class.add_to_class('MultipleObjectsReturned', subclass_exception('MultipleObjectsReturned',
+                    tuple([x.MultipleObjectsReturned
+                            for x in parents if hasattr(x, '_meta') and not x._meta.abstract])
+                                    or (MultipleObjectsReturned,), module))
             if base_meta and not base_meta.abstract:
                 # Non-abstract child classes inherit some attributes from their
                 # non-abstract parent (unless an ABC comes before it in the
@@ -232,7 +236,8 @@ class ModelBase(type):
             cls.__doc__ = "%s(%s)" % (cls.__name__, ", ".join([f.attname for f in opts.fields]))
 
         if hasattr(cls, 'get_absolute_url'):
-            cls.get_absolute_url = curry(get_absolute_url, opts, cls.get_absolute_url)
+            cls.get_absolute_url = update_wrapper(curry(get_absolute_url, opts, cls.get_absolute_url),
+                                                  cls.get_absolute_url)
 
         signals.class_prepared.send(sender=cls)
 
@@ -533,7 +538,8 @@ class Model(object):
              (model_class, {pk_val: obj, pk_val: obj, ...}), ...]
         """
         pk_val = self._get_pk_val()
-        if seen_objs.add(self.__class__, pk_val, self, parent, nullable):
+        if seen_objs.add(self.__class__, pk_val, self,
+                         type(parent), parent, nullable):
             return
 
         for related in self._meta.get_all_related_objects():
@@ -544,7 +550,7 @@ class Model(object):
                 except ObjectDoesNotExist:
                     pass
                 else:
-                    sub_obj._collect_sub_objects(seen_objs, self.__class__, related.field.null)
+                    sub_obj._collect_sub_objects(seen_objs, self, related.field.null)
             else:
                 # To make sure we can access all elements, we can't use the
                 # normal manager on the related object. So we work directly
@@ -557,7 +563,7 @@ class Model(object):
                     raise AssertionError("Should never get here.")
                 delete_qs = rel_descriptor.delete_manager(self).all()
                 for sub_obj in delete_qs:
-                    sub_obj._collect_sub_objects(seen_objs, self.__class__, related.field.null)
+                    sub_obj._collect_sub_objects(seen_objs, self, related.field.null)
 
         # Handle any ancestors (for the model-inheritance case). We do this by
         # traversing to the most remote parent classes -- those with no parents
@@ -681,8 +687,8 @@ model_unpickle.__safe_for_unpickle__ = True
 
 if sys.version_info < (2, 5):
     # Prior to Python 2.5, Exception was an old-style class
-    def subclass_exception(name, parent, unused):
-        return types.ClassType(name, (parent,), {})
+    def subclass_exception(name, parents, unused):
+        return types.ClassType(name, parents, {})
 else:
-    def subclass_exception(name, parent, module):
-        return type(name, (parent,), {'__module__': module})
+    def subclass_exception(name, parents, module):
+        return type(name, parents, {'__module__': module})

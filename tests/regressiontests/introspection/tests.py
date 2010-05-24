@@ -76,8 +76,10 @@ class IntrospectionTests(TestCase):
     def test_get_table_description_types(self):
         cursor = connection.cursor()
         desc = connection.introspection.get_table_description(cursor, Reporter._meta.db_table)
-        self.assertEqual([datatype(r[1], r) for r in desc],
-                          ['IntegerField', 'CharField', 'CharField', 'CharField'])
+        self.assertEqual(
+            [datatype(r[1], r) for r in desc],
+            ['IntegerField', 'CharField', 'CharField', 'CharField']
+        )
 
     # Regression test for #9991 - 'real' types in postgres
     if settings.DATABASE_ENGINE.startswith('postgresql'):

@@ -37,20 +37,10 @@ function windowname_to_id(text) {
 }
 
 function getAdminMediaPrefix() {
-    // Deduce admin_media_prefix by looking at the <script>s in the
-    // current document and finding the URL of *this* module.
-    // Copy-paste from DateTimeShortcuts.js, makes sense as a
-    // separate function in core.js.
-    var scripts = document.getElementsByTagName('script');
+  if (window.__admin_media_prefix__ != undefined)
+    return window.__admin_media_prefix__;
 
-    for (var i=0; i < scripts.length; i++) {
-        if (scripts[i].src.match(/RelatedObjectLookups/)) {
-            var idx = scripts[i].src.indexOf('js/admin/RelatedObjectLookups');
-            return scripts[i].src.substring(0, idx);
-        }
-    }
-    // poor man's assert
-    alert('This line is unreachable. Please file a bug if you see this message.');
+  return '/missing-admin-media-prefix/';
 }
 
 var CLEAR_RAW_ID = '<a href="#" onclick="return clearRawId(this);">' +

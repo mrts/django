@@ -4,8 +4,8 @@ from django.db import models
 from django.core.files.storage import default_storage
 from django.contrib.auth.models import User
 
-class MyFileField(models.FileField): 
-    pass 
+class MyFileField(models.FileField):
+    pass
 
 class Member(models.Model):
     name = models.CharField(max_length=100)
@@ -107,7 +107,7 @@ Currently: <a target="_blank" href="%(STORAGE_URL)salbums/hybrid_theory.jpg">alb
 >>> rel = Album._meta.get_field('band').rel
 >>> w = ForeignKeyRawIdWidget(rel)
 >>> print conditional_escape(w.render('test', band.pk, attrs={}))
-<input type="text" name="test" value="1" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/band/?t=id" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong>Linkin Park</strong>
+<input type="text" name="test" value="1" class="vForeignKeyRawIdAdminField" /> <a href="../../../admin_widgets/band/?t=id" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" title="Lookup" /></a> <strong id="view_lookup_id_test"><a href="../../../admin_widgets/band/1/" onclick="return showRelatedObjectPopup(this);">Linkin Park</a> <a href="#" onclick="return clearRawId(this);"><img src="%(ADMIN_MEDIA_PREFIX)simg/admin/icon_deletelink.gif" width="10" height="10" alt="Clear" title="Clear" /></a></strong>
 
 >>> m1 = Member.objects.create(pk=1, name='Chester')
 >>> m2 = Member.objects.create(pk=2, name='Mike')
@@ -116,7 +116,7 @@ Currently: <a target="_blank" href="%(STORAGE_URL)salbums/hybrid_theory.jpg">alb
 >>> rel = Band._meta.get_field('members').rel
 >>> w = ManyToManyRawIdWidget(rel)
 >>> print conditional_escape(w.render('test', [m1.pk, m2.pk], attrs={}))
-<input type="text" name="test" value="1,2" class="vManyToManyRawIdAdminField" /><a href="../../../admin_widgets/member/" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>
+||| FIXME -- ManyToManyRawIdWidget has not been implemented |||
 >>> w._has_changed(None, None)
 False
 >>> w._has_changed([], None)
@@ -138,13 +138,18 @@ True
 >>> rel = Inventory._meta.get_field('parent').rel
 >>> w = ForeignKeyRawIdWidget(rel)
 >>> print w.render('test', core.parent_id, attrs={})
-<input type="text" name="test" value="86" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong>Apple</strong>
+<input type="text" name="test" value="86" class="vForeignKeyRawIdAdminField" /> <a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" title="Lookup" /></a> <strong id="view_lookup_id_test"><a href="../../../admin_widgets/inventory/1/" onclick="return showRelatedObjectPopup(this);">Apple</a> <a href="#" onclick="return clearRawId(this);"><img src="%(ADMIN_MEDIA_PREFIX)simg/admin/icon_deletelink.gif" width="10" height="10" alt="Clear" title="Clear" /></a></strong>
 
 # see #9258
 >>> hidden = Inventory.objects.create(barcode=93, name='Hidden', hidden=True)
 >>> child_of_hidden = Inventory.objects.create(barcode=94, name='Child of hidden', parent=hidden)
 >>> print w.render('test', child_of_hidden.parent_id, attrs={})
-<input type="text" name="test" value="93" class="vForeignKeyRawIdAdminField" /><a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" /></a>&nbsp;<strong>Hidden</strong>
+<input type="text" name="test" value="93" class="vForeignKeyRawIdAdminField" /> <a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" title="Lookup" /></a> <strong id="view_lookup_id_test"><a href="../../../admin_widgets/inventory/4/" onclick="return showRelatedObjectPopup(this);">Hidden</a> <a href="#" onclick="return clearRawId(this);"><img src="%(ADMIN_MEDIA_PREFIX)simg/admin/icon_deletelink.gif" width="10" height="10" alt="Clear" title="Clear" /></a></strong>
+
+>>> apostrophe = Inventory.objects.create(barcode=88, name="'Apostrophe', and <javascript> and a really really` really really really really really long one!")
+>>> apostrophic_child = Inventory.objects.create(barcode=89, name="Apostrophe's child", parent=apostrophe)
+>>> print w.render('test', apostrophic_child.parent_id, attrs={})
+<input type="text" name="test" value="88" class="vForeignKeyRawIdAdminField" /> <a href="../../../admin_widgets/inventory/?t=barcode" class="related-lookup" id="lookup_id_test" onclick="return showRelatedObjectLookupPopup(this);"> <img src="%(ADMIN_MEDIA_PREFIX)simg/admin/selector-search.gif" width="16" height="16" alt="Lookup" title="Lookup" /></a> <strong id="view_lookup_id_test"><a href="../../../admin_widgets/inventory/6/" onclick="return showRelatedObjectPopup(this);">&#39;Apostrophe&#39;, and &lt;javascript&gt; and a really really` ...</a> <a href="#" onclick="return clearRawId(this);"><img src="%(ADMIN_MEDIA_PREFIX)simg/admin/icon_deletelink.gif" width="10" height="10" alt="Clear" title="Clear" /></a></strong>
 """ % {
     'ADMIN_MEDIA_PREFIX': settings.ADMIN_MEDIA_PREFIX,
     'STORAGE_URL': default_storage.url(''),

@@ -7,13 +7,11 @@ import django.utils.copycompat as copy
 from django import forms
 from django.forms.widgets import RadioFieldRenderer
 from django.forms.util import flatatt
-from django.utils.html import escape
-from django.utils.text import truncate_words
 from django.utils.translation import ugettext as _
 from django.utils.safestring import mark_safe
 from django.utils.encoding import force_unicode
 from django.conf import settings
-from django.core.urlresolvers import reverse, NoReverseMatch
+from django.contrib.admin.util import get_related_url, obj_label
 
 class FilteredSelectMultiple(forms.SelectMultiple):
     """
@@ -109,7 +107,7 @@ class ForeignKeyRawIdWidget(forms.TextInput):
     def render(self, name, value, attrs=None):
         if attrs is None:
             attrs = {}
-        related_url = '../../../%s/%s/' % (self.rel.to._meta.app_label, self.rel.to._meta.object_name.lower())
+        related_url = get_related_url(self.rel.to)
         params = self.url_parameters()
         if params:
             url = '?' + '&amp;'.join(['%s=%s' % (k, v) for k, v in params.items()])
@@ -120,11 +118,10 @@ class ForeignKeyRawIdWidget(forms.TextInput):
         output = [super(ForeignKeyRawIdWidget, self).render(name, value, attrs)]
         # TODO: "id_" is hard-coded here. This should instead use the correct
         # API to determine the ID dynamically.
-        output.append('<a href="%s%s" class="related-lookup" id="lookup_id_%s" onclick="return showRelatedObjectLookupPopup(this);"> ' % \
+        output.append(' <a href="%s%s" class="related-lookup" id="lookup_id_%s" onclick="return showRelatedObjectLookupPopup(this);"> ' % \
             (related_url, url, name))
-        output.append('<img src="%simg/admin/selector-search.gif" width="16" height="16" alt="%s" /></a>' % (settings.ADMIN_MEDIA_PREFIX, _('Lookup')))
-        if value:
-            output.append(self.label_for_value(value))
+        output.append('<img src="%(prefix)simg/admin/selector-search.gif" width="16" height="16" alt="%(title)s" title="%(title)s" /></a>' % {'prefix': settings.ADMIN_MEDIA_PREFIX, 'title': _('Lookup')})
+        output.append(self.label_for_value(value, 'view_lookup_id_%s' % name))
         return mark_safe(u''.join(output))
 
     def base_url_parameters(self):
@@ -146,13 +143,29 @@ class ForeignKeyRawIdWidget(forms.TextInput):
         params.update({TO_FIELD_VAR: self.rel.get_related_field().name})
         return params
 
-    def label_for_value(self, value):
-        key = self.rel.get_related_field().name
-        try:
-            obj = self.rel.to._default_manager.get(**{key: value})
-        except self.rel.to.DoesNotExist:
-            return ''
-        return '&nbsp;<strong>%s</strong>' % escape(truncate_words(obj, 14))
+    def label_for_value(self, value, name):
+        # a placeholder that will be filled in
+        # JavaScript dismissRelatedLookupPopup()
+        ret = ' <strong id="%s"></strong>' % name
+        if value:
+            key = self.rel.get_related_field().name
+            try:
+                obj = self.rel.to._default_manager.get(**{key: value})
+                related_url = get_related_url(obj, obj.pk)
+                ret = (' <strong id="%(name)s"><a href="%(url)s" '
+                    'onclick="return showRelatedObjectPopup(this);">%(label)s</a> '
+                    '<a href="#" onclick="return clearRawId(this);">'
+                    '<img src="%(prefix)simg/admin/icon_deletelink.gif" '
+                    'width="10" height="10" alt="%(clear)s" title="%(clear)s" />'
+                    '</a></strong>' % {'name': name, 'url': related_url,
+                        'label': obj_label(obj),
+                        'prefix': settings.ADMIN_MEDIA_PREFIX,
+                        'clear': _("Clear"),}
+                    )
+            except self.rel.to.DoesNotExist:
+                pass
+
+        return ret
 
 class ManyToManyRawIdWidget(ForeignKeyRawIdWidget):
     """
@@ -173,7 +186,7 @@ class ManyToManyRawIdWidget(ForeignKeyRawIdWidget):
     def url_parameters(self):
         return self.base_url_parameters()
 
-    def label_for_value(self, value):
+    def label_for_value(self, value, name):
         return ''
 
     def value_from_datadict(self, data, files, name):
@@ -223,16 +236,11 @@ class RelatedFieldWidgetWrapper(forms.Widget):
     media = property(_media)
 
     def render(self, name, value, *args, **kwargs):
-        rel_to = self.rel.to
-        info = (rel_to._meta.app_label, rel_to._meta.object_name.lower())
-        try:
-            related_url = reverse('admin:%s_%s_add' % info, current_app=self.admin_site.name)
-        except NoReverseMatch:
-            info = (self.admin_site.root_path, rel_to._meta.app_label, rel_to._meta.object_name.lower())
-            related_url = '%s%s/%s/add/' % info
         self.widget.choices = self.choices
         output = [self.widget.render(name, value, *args, **kwargs)]
+        rel_to = self.rel.to
         if rel_to in self.admin_site._registry: # If the related object has an admin interface:
+            related_url = get_related_url(rel_to, 'add', self.admin_site)
             # TODO: "id_" is hard-coded here. This should instead use the correct
             # API to determine the ID dynamically.
             output.append(u'<a href="%s" class="add-another" id="add_id_%s" onclick="return showAddAnotherPopup(this);"> ' % \

@@ -2,7 +2,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
-from django.utils.text import capfirst
+from django.utils.text import capfirst, truncate_words
 from django.utils.encoding import force_unicode
 from django.utils.translation import ungettext, ugettext as _
 from django.core.urlresolvers import reverse, NoReverseMatch
@@ -272,3 +272,27 @@ def model_ngettext(obj, n=None):
     d = model_format_dict(obj)
     singular, plural = d["verbose_name"], d["verbose_name_plural"]
     return ungettext(singular, plural, n or 0)
+
+def get_related_url(rel_to, action=None, admin_site=None):
+    reverse_path = 'admin:%s_%s'
+    rel_path = '%s%s/%s/'
+    params = [rel_to._meta.app_label, rel_to._meta.object_name.lower()]
+
+    if action:
+        reverse_path += '_%s'
+        rel_path += '%s/'
+        params.append(action)
+
+    if admin_site:
+        try:
+            return reverse(reverse_path % tuple(params),
+                    current_app=admin_site.name)
+        except NoReverseMatch:
+            params.insert(0, admin_site.root_path)
+            return rel_path % tuple(params)
+
+    params.insert(0, '../../../')
+    return rel_path % tuple(params)
+
+def obj_label(obj):
+    return escape(truncate_words(obj, 7))
